@@ -185,9 +185,19 @@
       },
       "rules": {
         "enableBuiltin": "启用内置 Blackmatrix7 规则",
-        "builtinHint": "内置规则默认每天自动更新。你也可以添加自己的远程 URL 或本地规则文件；关闭内置规则只会关闭 Feiliu 自动生成的 Blackmatrix7 规则，不会删除订阅中的其他规则。",
+        "builtinHint": "内置规则默认每天自动更新。你也可以添加自己的远程 URL 或本地规则文件；关闭内置规则只会关闭 Feiliu 自动生成的 Blackmatrix7 规则，不会删除订阅中的其他规则。规则源按 Mihomo 规则提供者读取。",
         "name": "规则名称",
         "url": "规则集 URL",
+        "behaviors": {
+          "classical": "Classical 规则",
+          "domain": "域名规则",
+          "ipcidr": "IP 段规则"
+        },
+        "formats": {
+          "yaml": "YAML",
+          "text": "纯文本",
+          "mrs": "MRS"
+        },
         "addUrl": "添加 URL 规则",
         "addFile": "选择本地规则",
         "remove": "删除规则集",

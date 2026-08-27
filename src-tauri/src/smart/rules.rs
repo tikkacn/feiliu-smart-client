@@ -1,6 +1,6 @@
 use serde_yaml_ng::{Mapping, Value};
 
-use super::model::{CustomRuleSet, CustomRuleSource};
+use super::model::{CustomRuleBehavior, CustomRuleFormat, CustomRuleSet, CustomRuleSource};
 
 const PROVIDER_INTERVAL_SECONDS: u64 = 86_400;
 const PROVIDER_PREFIX: &str = "Feiliu-BM-";
@@ -187,17 +187,32 @@ fn custom_provider_name(id: &str) -> String {
     )
 }
 
-fn custom_provider_config(source: &CustomRuleSource, id: &str) -> Option<Mapping> {
+fn custom_provider_config(
+    source: &CustomRuleSource,
+    behavior: CustomRuleBehavior,
+    format: CustomRuleFormat,
+    id: &str,
+) -> Option<Mapping> {
     let mut mapping = Mapping::new();
-    mapping.insert("behavior".into(), "classical".into());
-    mapping.insert("format".into(), "yaml".into());
-    mapping.insert("interval".into(), PROVIDER_INTERVAL_SECONDS.into());
+    let behavior_name = match behavior {
+        CustomRuleBehavior::Classical => "classical",
+        CustomRuleBehavior::Domain => "domain",
+        CustomRuleBehavior::Ipcidr => "ipcidr",
+    };
+    let format_name = match format {
+        CustomRuleFormat::Yaml => "yaml",
+        CustomRuleFormat::Text => "text",
+        CustomRuleFormat::Mrs => "mrs",
+    };
+    mapping.insert("behavior".into(), behavior_name.into());
+    mapping.insert("format".into(), format_name.into());
 
     match source {
         CustomRuleSource::Url { url } if is_http_url(url) => {
             mapping.insert("type".into(), "http".into());
             mapping.insert("url".into(), url.trim().into());
             mapping.insert("path".into(), format!("providers/feiliu-custom-{id}.yaml").into());
+            mapping.insert("interval".into(), PROVIDER_INTERVAL_SECONDS.into());
             Some(mapping)
         }
         CustomRuleSource::File { path } if !path.trim().is_empty() => {
@@ -228,7 +243,7 @@ fn install_custom_providers(config: &mut Mapping, custom_rules: &[CustomRuleSet]
         .filter(|rule| rule.enabled && !rule.id.trim().is_empty() && !rule.name.trim().is_empty())
         .filter_map(|rule| {
             let provider_id = custom_provider_id(&rule.id);
-            custom_provider_config(&rule.source, &provider_id)
+            custom_provider_config(&rule.source, rule.behavior, rule.format, &provider_id)
                 .map(|config| (custom_provider_name(&provider_id), config))
         })
         .map(|(name, config)| {
@@ -348,7 +363,7 @@ fn install_managed_rules(
         if provider_id.is_empty() || rule.name.trim().is_empty() {
             continue;
         }
-        if custom_provider_config(&rule.source, &provider_id).is_none() {
+        if custom_provider_config(&rule.source, rule.behavior, rule.format, &provider_id).is_none() {
             continue;
         }
         let target = rule
@@ -432,7 +447,10 @@ fn is_match_rule(rule: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{CustomRuleSet, CustomRuleSource, apply_blackmatrix_rules};
+    use super::{
+        CustomRuleBehavior, CustomRuleFormat, CustomRuleSet, CustomRuleSource,
+        apply_blackmatrix_rules,
+    };
     use serde_yaml_ng::Value;
 
     #[test]
@@ -483,6 +501,8 @@ mod tests {
                 source: CustomRuleSource::Url {
                     url: "https://example.com/rules.yaml".into(),
                 },
+                behavior: CustomRuleBehavior::Classical,
+                format: CustomRuleFormat::Yaml,
                 enabled: true,
                 target: None,
             },
@@ -492,6 +512,8 @@ mod tests {
                 source: CustomRuleSource::File {
                     path: "C:/rules/local.yaml".into(),
                 },
+                behavior: CustomRuleBehavior::Domain,
+                format: CustomRuleFormat::Text,
                 enabled: true,
                 target: Some("DIRECT".into()),
             },
@@ -503,6 +525,8 @@ mod tests {
         );
         assert!(config["rule-providers"]["Feiliu-Custom-remote"]["type"] == "http");
         assert!(config["rule-providers"]["Feiliu-Custom-local"]["type"] == "file");
+        assert!(config["rule-providers"]["Feiliu-Custom-local"]["behavior"] == "domain");
+        assert!(config["rule-providers"]["Feiliu-Custom-local"]["format"] == "text");
         assert!(
             config["rules"]
                 .as_sequence()

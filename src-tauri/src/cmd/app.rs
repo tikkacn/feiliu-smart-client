@@ -2,6 +2,7 @@ use super::CmdResult;
 use crate::core::autostart;
 use crate::{cmd::StringifyErr as _, feat, utils::dirs};
 use smartstring::alias::String;
+use std::path::PathBuf;
 use tauri::{AppHandle, Manager as _};
 
 #[tauri::command]
@@ -59,6 +60,44 @@ pub fn get_portable_flag() -> bool {
 pub fn get_app_dir() -> CmdResult<String> {
     let app_home_dir = dirs::app_home_dir().stringify_err()?.to_string_lossy().into();
     Ok(app_home_dir)
+}
+
+/// Copies a user-selected rule file into Mihomo's application-owned safe path.
+///
+/// Mihomo restricts local rule-provider paths to its home directory by default,
+/// so keeping the original Downloads/Desktop path would make a valid-looking
+/// rule source fail when the generated runtime config is loaded.
+#[tauri::command]
+pub async fn import_rule_file(path: String, rule_id: String) -> CmdResult<String> {
+    let source = PathBuf::from(path.trim());
+    if source.as_os_str().is_empty() {
+        return Err("rule file path is empty".into());
+    }
+
+    let metadata = tokio::fs::metadata(&source).await.stringify_err()?;
+    if !metadata.is_file() {
+        return Err("selected rule source is not a file".into());
+    }
+
+    let safe_id = rule_id
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric() || *character == '-' || *character == '_')
+        .collect::<std::string::String>();
+    if safe_id.is_empty() {
+        return Err("rule id is empty".into());
+    }
+
+    let extension = source
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .filter(|extension| matches!(extension.to_ascii_lowercase().as_str(), "yaml" | "yml" | "txt" | "mrs"))
+        .unwrap_or("yaml");
+    let target_dir = dirs::app_home_dir().stringify_err()?.join("rule-providers");
+    tokio::fs::create_dir_all(&target_dir).await.stringify_err()?;
+    let target = target_dir.join(format!("feiliu-custom-{safe_id}.{extension}"));
+    tokio::fs::copy(&source, &target).await.stringify_err()?;
+
+    Ok(target.to_string_lossy().into())
 }
 
 #[tauri::command]

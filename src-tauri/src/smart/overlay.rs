@@ -43,7 +43,7 @@ pub fn apply_smart_routes(config: &mut Mapping, settings: &SmartRouteConfig) -> 
         (UNICOM_GROUP_NAME, NetworkOperator::Unicom),
         (MOBILE_GROUP_NAME, NetworkOperator::Mobile),
     ] {
-        let nodes = categorized_nodes(&existing_nodes, settings, operator);
+        let nodes = categorized_nodes(&configured_node_names(&existing_nodes, settings), settings, operator);
         if !nodes.is_empty() {
             groups.push(Value::Mapping(build_url_test_group(name, nodes)));
             added += 1;
@@ -93,6 +93,18 @@ fn existing_provider_names(config: &Mapping) -> Vec<String> {
         .collect()
 }
 
+fn configured_node_names(existing_nodes: &[String], settings: &SmartRouteConfig) -> Vec<String> {
+    let mut names = existing_nodes.to_vec();
+    for name in settings.node_categories.keys() {
+        if !names.iter().any(|existing| existing == name)
+            && !matches!(name.to_ascii_uppercase().as_str(), "DIRECT" | "REJECT")
+        {
+            names.push(name.clone());
+        }
+    }
+    names
+}
+
 fn categorized_nodes(nodes: &[String], settings: &SmartRouteConfig, operator: NetworkOperator) -> Vec<String> {
     nodes
         .iter()
@@ -107,7 +119,10 @@ fn categorized_nodes(nodes: &[String], settings: &SmartRouteConfig, operator: Ne
 }
 
 fn build_url_test_group(name: &str, nodes: Vec<String>) -> Mapping {
-    build_url_test_group_with_providers(name, nodes, Vec::new())
+    let mut group = build_url_test_group_with_providers(name, Vec::new(), Vec::new());
+    group.insert("include-all".into(), true.into());
+    group.insert("filter".into(), node_filter(&nodes).into());
+    group
 }
 
 fn build_url_test_group_with_providers(name: &str, nodes: Vec<String>, providers: Vec<String>) -> Mapping {
@@ -124,6 +139,24 @@ fn build_url_test_group_with_providers(name: &str, nodes: Vec<String>, providers
     group
 }
 
+fn node_filter(nodes: &[String]) -> String {
+    let escaped = nodes.iter().map(|name| regex_escape(name)).collect::<Vec<_>>();
+    format!("^({})$", escaped.join("|"))
+}
+
+fn regex_escape(value: &str) -> String {
+    value
+        .chars()
+        .flat_map(|character| {
+            if matches!(character, '\\' | '.' | '^' | '$' | '|' | '(' | ')' | '[' | ']' | '{' | '}' | '*' | '+' | '?' ) {
+                vec!['\\', character]
+            } else {
+                vec![character]
+            }
+        })
+        .collect()
+}
+
 fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping) -> &'static str {
     let detected = current_network().operator;
     let detected_group = match detected {
@@ -137,12 +170,14 @@ fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping) -> &'st
         return ALL_GROUP_NAME;
     }
 
-    let has_matching_node = existing_proxy_names(config).iter().any(|name| {
+    let has_matching_node = configured_node_names(&existing_proxy_names(config), settings)
+        .iter()
+        .any(|name| {
         settings
             .node_categories
             .get(name)
             .is_some_and(|category| category.includes(detected))
-    });
+        });
     if has_matching_node {
         detected_group
     } else {
@@ -227,9 +262,10 @@ mod tests {
                 .find(|group| group["name"].as_str() == Some(name))
                 .expect("group")
         };
-        assert_eq!(group("电信优化")["proxies"].as_sequence().unwrap().len(), 3);
-        assert_eq!(group("联通优化")["proxies"].as_sequence().unwrap().len(), 2);
-        assert_eq!(group("移动优化")["proxies"].as_sequence().unwrap().len(), 2);
+        assert_eq!(group("电信优化")["include-all"], true);
+        assert_eq!(group("电信优化")["filter"], "^(telecom|both|all)$");
+        assert_eq!(group("联通优化")["filter"], "^(both|all)$");
+        assert_eq!(group("移动优化")["filter"], "^(all)$");
         assert!(groups.iter().all(|group| group["name"].as_str() != Some("三网优化")));
     }
 }

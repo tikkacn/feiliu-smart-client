@@ -33,6 +33,7 @@ import { useTranslation } from 'react-i18next'
 import { BasePage } from '@/components/base'
 import { useVerge } from '@/hooks/use-verge'
 import { useProxiesData } from '@/providers/app-data-context'
+import { importRuleFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import {
   SMART_LINE_CATEGORIES,
@@ -69,6 +70,26 @@ const RULE_TARGET_LABEL_KEYS: Record<RuleTarget, string> = {
   DIRECT: 'settings.sections.smartRoute.rules.targets.direct',
 }
 
+const RULE_BEHAVIORS = ['classical', 'domain', 'ipcidr'] as const
+
+type RuleBehavior = (typeof RULE_BEHAVIORS)[number]
+
+const RULE_BEHAVIOR_LABEL_KEYS: Record<RuleBehavior, string> = {
+  classical: 'settings.sections.smartRoute.rules.behaviors.classical',
+  domain: 'settings.sections.smartRoute.rules.behaviors.domain',
+  ipcidr: 'settings.sections.smartRoute.rules.behaviors.ipcidr',
+}
+
+const RULE_FORMATS = ['yaml', 'text', 'mrs'] as const
+
+type RuleFormat = (typeof RULE_FORMATS)[number]
+
+const RULE_FORMAT_LABEL_KEYS: Record<RuleFormat, string> = {
+  yaml: 'settings.sections.smartRoute.rules.formats.yaml',
+  text: 'settings.sections.smartRoute.rules.formats.text',
+  mrs: 'settings.sections.smartRoute.rules.formats.mrs',
+}
+
 const LineOptimizationPage = () => {
   const { t } = useTranslation()
   const { proxyView } = useProxiesData()
@@ -78,6 +99,9 @@ const LineOptimizationPage = () => {
   const [customRules, setCustomRules] = useState<CustomRuleSet[]>([])
   const [newRuleName, setNewRuleName] = useState('')
   const [newRuleUrl, setNewRuleUrl] = useState('')
+  const [newRuleBehavior, setNewRuleBehavior] =
+    useState<RuleBehavior>('classical')
+  const [newRuleFormat, setNewRuleFormat] = useState<RuleFormat>('yaml')
   const [dirty, setDirty] = useState(false)
 
   const nodes = useMemo(
@@ -100,6 +124,8 @@ const LineOptimizationPage = () => {
     setCustomRules(
       (smartRoute?.customRules ?? []).map((rule) => ({
         ...rule,
+        behavior: rule.behavior ?? 'classical',
+        format: rule.format ?? 'yaml',
         enabled: rule.enabled ?? true,
       })),
     )
@@ -138,28 +164,52 @@ const LineOptimizationPage = () => {
     }
   })
 
-  const addCustomRule = (source: CustomRuleSource, nameOverride?: string) => {
+  const addCustomRule = async (
+    source: CustomRuleSource,
+    nameOverride?: string,
+  ) => {
     const name = (nameOverride ?? newRuleName).trim()
     if (!name) {
       showNotice.error('settings.sections.smartRoute.messages.ruleNameRequired')
       return
     }
-    setCustomRules((current) => [
-      ...current,
-      { id: nanoid(), name, source, enabled: true },
-    ])
-    setNewRuleName('')
-    setNewRuleUrl('')
-    setDirty(true)
+    const id = nanoid()
+    try {
+      const persistedSource =
+        source.kind === 'file'
+          ? {
+              kind: 'file' as const,
+              path: await importRuleFile(source.path, id),
+            }
+          : source
+      setCustomRules((current) => [
+        ...current,
+        {
+          id,
+          name,
+          source: persistedSource,
+          behavior: newRuleBehavior,
+          format: newRuleFormat,
+          enabled: true,
+        },
+      ])
+      setNewRuleName('')
+      setNewRuleUrl('')
+      setNewRuleBehavior('classical')
+      setNewRuleFormat('yaml')
+      setDirty(true)
+    } catch (error) {
+      showNotice.error(error)
+    }
   }
 
-  const addUrlRule = () => {
+  const addUrlRule = async () => {
     const url = newRuleUrl.trim()
     if (!/^https?:\/\//i.test(url)) {
       showNotice.error('settings.sections.smartRoute.messages.invalidRuleUrl')
       return
     }
-    addCustomRule({ kind: 'url', url })
+    await addCustomRule({ kind: 'url', url })
   }
 
   const addLocalRule = async () => {
@@ -167,12 +217,12 @@ const LineOptimizationPage = () => {
       directory: false,
       multiple: false,
       filters: [
-        { name: 'Clash rule files', extensions: ['yaml', 'yml', 'txt'] },
+        { name: 'Clash rule files', extensions: ['yaml', 'yml', 'txt', 'mrs'] },
       ],
     })
     if (typeof selected !== 'string') return
     const fallbackName = selected.split(/[/\\]/).pop() ?? '本地规则'
-    addCustomRule(
+    await addCustomRule(
       { kind: 'file', path: selected },
       newRuleName.trim() || fallbackName,
     )
@@ -230,6 +280,34 @@ const LineOptimizationPage = () => {
                 onChange={(event) => setNewRuleUrl(event.target.value)}
                 sx={{ flex: 1, minWidth: 260 }}
               />
+              <Select
+                size="small"
+                value={newRuleBehavior}
+                onChange={(event) =>
+                  setNewRuleBehavior(event.target.value as RuleBehavior)
+                }
+                sx={{ minWidth: 150 }}
+              >
+                {RULE_BEHAVIORS.map((value) => (
+                  <MenuItem key={value} value={value}>
+                    {t(RULE_BEHAVIOR_LABEL_KEYS[value])}
+                  </MenuItem>
+                ))}
+              </Select>
+              <Select
+                size="small"
+                value={newRuleFormat}
+                onChange={(event) =>
+                  setNewRuleFormat(event.target.value as RuleFormat)
+                }
+                sx={{ minWidth: 110 }}
+              >
+                {RULE_FORMATS.map((value) => (
+                  <MenuItem key={value} value={value}>
+                    {t(RULE_FORMAT_LABEL_KEYS[value])}
+                  </MenuItem>
+                ))}
+              </Select>
               <Button
                 variant="outlined"
                 startIcon={<AddRoundedIcon />}
@@ -284,6 +362,50 @@ const LineOptimizationPage = () => {
                       >
                         {sourceLabel}
                       </Typography>
+                      <Select
+                        size="small"
+                        value={(rule.behavior ?? 'classical') as RuleBehavior}
+                        onChange={(event) => {
+                          const value = event.target.value as RuleBehavior
+                          setCustomRules((current) =>
+                            current.map((item) =>
+                              item.id === rule.id
+                                ? { ...item, behavior: value }
+                                : item,
+                            ),
+                          )
+                          setDirty(true)
+                        }}
+                        sx={{ minWidth: 130 }}
+                      >
+                        {RULE_BEHAVIORS.map((value) => (
+                          <MenuItem key={value} value={value}>
+                            {t(RULE_BEHAVIOR_LABEL_KEYS[value])}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      <Select
+                        size="small"
+                        value={(rule.format ?? 'yaml') as RuleFormat}
+                        onChange={(event) => {
+                          const value = event.target.value as RuleFormat
+                          setCustomRules((current) =>
+                            current.map((item) =>
+                              item.id === rule.id
+                                ? { ...item, format: value }
+                                : item,
+                            ),
+                          )
+                          setDirty(true)
+                        }}
+                        sx={{ minWidth: 100 }}
+                      >
+                        {RULE_FORMATS.map((value) => (
+                          <MenuItem key={value} value={value}>
+                            {t(RULE_FORMAT_LABEL_KEYS[value])}
+                          </MenuItem>
+                        ))}
+                      </Select>
                       <Select
                         size="small"
                         value={target}

@@ -863,10 +863,16 @@ type CustomRuleSource =
   | { kind: 'url'; url: string }
   | { kind: 'file'; path: string }
 
+type CustomRuleBehavior = 'classical' | 'domain' | 'ipcidr'
+
+type CustomRuleFormat = 'yaml' | 'text' | 'mrs'
+
 interface CustomRuleSet {
   id: string
   name: string
   source: CustomRuleSource
+  behavior?: CustomRuleBehavior
+  format?: CustomRuleFormat
   enabled?: boolean
   target?: string
 }

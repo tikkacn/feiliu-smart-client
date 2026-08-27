@@ -1367,8 +1367,18 @@ export interface TranslationResources {
           rules: {
             addFile: string
             addUrl: string
+            behaviors: {
+              classical: string
+              domain: string
+              ipcidr: string
+            }
             builtinHint: string
             enableBuiltin: string
+            formats: {
+              mrs: string
+              text: string
+              yaml: string
+            }
             name: string
             remove: string
             targets: {

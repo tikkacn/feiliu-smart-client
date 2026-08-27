@@ -77,6 +77,24 @@ fn default_builtin_rules() -> bool {
     true
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CustomRuleBehavior {
+    #[default]
+    Classical,
+    Domain,
+    Ipcidr,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CustomRuleFormat {
+    #[default]
+    Yaml,
+    Text,
+    Mrs,
+}
+
 /// A user-managed rule source that is added to the generated Mihomo config.
 ///
 /// URL sources are refreshed by Mihomo on their configured interval. File
@@ -95,6 +113,10 @@ pub struct CustomRuleSet {
     pub id: String,
     pub name: String,
     pub source: CustomRuleSource,
+    #[serde(default)]
+    pub behavior: CustomRuleBehavior,
+    #[serde(default)]
+    pub format: CustomRuleFormat,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
     #[serde(default)]
