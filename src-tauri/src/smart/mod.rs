@@ -1,5 +1,6 @@
 pub mod model;
 pub mod overlay;
+pub mod rules;
 
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};

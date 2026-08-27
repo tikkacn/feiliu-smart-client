@@ -152,6 +152,60 @@
           }
         }
       }
+    },
+    "smartRoute": {
+      "title": "Line Optimization",
+      "description": "Assign each line to one operator combination. The Telecom, Unicom, and Mobile runtime groups use every line that contains the corresponding operator and continuously test latency. Unclassified lines remain available in all nodes and individual node selection.",
+      "summary": "{{classified}} of {{total}} lines classified",
+      "actions": {
+        "save": "Save line classifications"
+      },
+      "fields": {
+        "node": "Node",
+        "source": "Source",
+        "category": "Line category"
+      },
+      "sources": {
+        "subscription": "Current subscription",
+        "provider": "Proxy provider"
+      },
+      "status": {
+        "ready": "Classification complete",
+        "pending": "Unclassified lines remain"
+      },
+      "categories": {
+        "unclassified": "Unclassified",
+        "telecom": "Telecom",
+        "unicom": "Unicom",
+        "mobile": "Mobile",
+        "telecomUnicom": "Telecom + Unicom",
+        "telecomMobile": "Telecom + Mobile",
+        "unicomMobile": "Unicom + Mobile",
+        "threeNetwork": "All three"
+      },
+      "rules": {
+        "enableBuiltin": "Enable built-in Blackmatrix7 rules",
+        "builtinHint": "Built-in rules update automatically every day. You can also add your own remote URL or local rule file. Disabling built-in rules only turns off Feiliu-managed Blackmatrix7 rules and does not delete other subscription rules.",
+        "name": "Rule name",
+        "url": "Rule set URL",
+        "addUrl": "Add URL rule",
+        "addFile": "Choose local rule",
+        "remove": "Remove rule set",
+        "targets": {
+          "auto": "Current operator optimization (auto)",
+          "telecom": "Telecom optimization",
+          "unicom": "Unicom optimization",
+          "mobile": "Mobile optimization",
+          "all": "All nodes",
+          "direct": "Direct"
+        }
+      },
+      "messages": {
+        "noNodes": "No usable nodes have been loaded. Add a valid subscription and load its nodes before classifying lines.",
+        "saved": "Line classifications and rule settings saved; the runtime configuration is being updated.",
+        "ruleNameRequired": "Enter a rule name first.",
+        "invalidRuleUrl": "Enter a rule set URL starting with http:// or https://."
+      }
     }
   },
   "components": {

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// The network category used to bias the local automatic route selector.
 ///
@@ -22,6 +23,108 @@ impl NetworkOperator {
             "mobile" => Some(Self::Mobile),
             "unknown" => Some(Self::Unknown),
             _ => None,
+        }
+    }
+}
+
+/// The mutually exclusive line classification shown in the line-optimization
+/// settings. These are the seven non-empty subsets of the three mainland
+/// operators. Runtime groups are derived from membership rather than from
+/// this enum's display name.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum LineCategory {
+    Telecom,
+    Unicom,
+    Mobile,
+    TelecomUnicom,
+    TelecomMobile,
+    UnicomMobile,
+    ThreeNetwork,
+}
+
+impl LineCategory {
+    pub const ALL: [Self; 7] = [
+        Self::Telecom,
+        Self::Unicom,
+        Self::Mobile,
+        Self::TelecomUnicom,
+        Self::TelecomMobile,
+        Self::UnicomMobile,
+        Self::ThreeNetwork,
+    ];
+
+    pub const fn includes(self, operator: NetworkOperator) -> bool {
+        match operator {
+            NetworkOperator::Telecom => matches!(
+                self,
+                Self::Telecom | Self::TelecomUnicom | Self::TelecomMobile | Self::ThreeNetwork
+            ),
+            NetworkOperator::Unicom => matches!(
+                self,
+                Self::Unicom | Self::TelecomUnicom | Self::UnicomMobile | Self::ThreeNetwork
+            ),
+            NetworkOperator::Mobile => matches!(
+                self,
+                Self::Mobile | Self::TelecomMobile | Self::UnicomMobile | Self::ThreeNetwork
+            ),
+            NetworkOperator::Unknown => false,
+        }
+    }
+}
+
+fn default_builtin_rules() -> bool {
+    true
+}
+
+/// A user-managed rule source that is added to the generated Mihomo config.
+///
+/// URL sources are refreshed by Mihomo on their configured interval. File
+/// sources intentionally keep the selected path so users can edit the file
+/// with their preferred editor and let Mihomo reload it.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum CustomRuleSource {
+    Url { url: String },
+    File { path: String },
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomRuleSet {
+    pub id: String,
+    pub name: String,
+    pub source: CustomRuleSource,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub target: Option<String>,
+}
+
+fn default_enabled() -> bool {
+    true
+}
+
+/// Local, user-owned smart-routing settings. The map key is the Mihomo proxy
+/// name so newly imported nodes remain unclassified until the user explicitly
+/// assigns one of the seven categories.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SmartRouteConfig {
+    #[serde(default)]
+    pub node_categories: BTreeMap<String, LineCategory>,
+    #[serde(default = "default_builtin_rules")]
+    pub use_builtin_rules: bool,
+    #[serde(default)]
+    pub custom_rules: Vec<CustomRuleSet>,
+}
+
+impl Default for SmartRouteConfig {
+    fn default() -> Self {
+        Self {
+            node_categories: BTreeMap::new(),
+            use_builtin_rules: true,
+            custom_rules: Vec::new(),
         }
     }
 }

@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::{
     config::{DEFAULT_PAC, deserialize_encrypted, serialize_encrypted},
+    smart::model::SmartRouteConfig,
     utils::{dirs, help},
 };
 use anyhow::Result;
@@ -195,6 +196,9 @@ pub struct IVerge {
     pub auto_light_weight_minutes: Option<u64>,
 
     pub enable_hover_jump_navigator: Option<bool>,
+
+    /// User-owned local line classifications used by Feiliu smart routing.
+    pub smart_route: Option<SmartRouteConfig>,
 
     /// 代理页面自动滚动延迟（毫秒）
     pub hover_jump_navigator_delay: Option<u64>,
@@ -486,6 +490,7 @@ impl IVerge {
         patch!(auto_light_weight_minutes);
         patch!(enable_dns_settings);
         patch!(home_cards);
+        patch!(smart_route);
         patch!(enable_external_controller);
     }
 

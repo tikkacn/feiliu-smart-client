@@ -152,6 +152,60 @@
           }
         }
       }
+    },
+    "smartRoute": {
+      "title": "线路优化",
+      "description": "每条线路请选择一个运营商组合。运行时的电信优化、联通优化、移动优化会分别使用包含对应运营商的线路，并持续测速选择更快的线路。未分类线路仍可在全部节点和单节点选择中使用。",
+      "summary": "共 {{total}} 条线路，已分类 {{classified}} 条",
+      "actions": {
+        "save": "保存线路分类"
+      },
+      "fields": {
+        "node": "节点",
+        "source": "来源",
+        "category": "线路分类"
+      },
+      "sources": {
+        "subscription": "当前订阅",
+        "provider": "节点提供者"
+      },
+      "status": {
+        "ready": "已完成分类",
+        "pending": "还有未分类线路"
+      },
+      "categories": {
+        "unclassified": "未分类",
+        "telecom": "电信优化",
+        "unicom": "联通优化",
+        "mobile": "移动优化",
+        "telecomUnicom": "电信联通优化",
+        "telecomMobile": "电信移动优化",
+        "unicomMobile": "联通移动优化",
+        "threeNetwork": "三网优化"
+      },
+      "rules": {
+        "enableBuiltin": "启用内置 Blackmatrix7 规则",
+        "builtinHint": "内置规则默认每天自动更新。你也可以添加自己的远程 URL 或本地规则文件；关闭内置规则只会关闭 Feiliu 自动生成的 Blackmatrix7 规则，不会删除订阅中的其他规则。",
+        "name": "规则名称",
+        "url": "规则集 URL",
+        "addUrl": "添加 URL 规则",
+        "addFile": "选择本地规则",
+        "remove": "删除规则集",
+        "targets": {
+          "auto": "当前运营商优化（自动）",
+          "telecom": "电信优化",
+          "unicom": "联通优化",
+          "mobile": "移动优化",
+          "all": "全部节点",
+          "direct": "直连"
+        }
+      },
+      "messages": {
+        "noNodes": "尚未读取到有效节点。请先添加正确的订阅地址并成功读取节点后，再进行线路分类。",
+        "saved": "线路分类和规则设置已保存，运行时配置正在更新。",
+        "ruleNameRequired": "请先填写规则名称。",
+        "invalidRuleUrl": "请输入以 http:// 或 https:// 开头的规则集 URL。"
+      }
     }
   },
   "components": {

@@ -67,6 +67,7 @@ bitflags! {
         const LANGUAGE = 1 << 11;
         const LOG_LEVEL = 1 << 12;
         const LOG_FILE = 1 << 13;
+        const SMART_ROUTE = 1 << 14;
 
         const GROUP_SYS_TRAY = Self::SYSTRAY_MENU.bits()
                              | Self::SYSTRAY_TOOLTIP.bits()
@@ -119,6 +120,7 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let log_level = &patch.app_log_level;
     let log_max_size = patch.app_log_max_size;
     let log_max_count = patch.app_log_max_count;
+    let smart_route = patch.smart_route.as_ref();
 
     #[cfg(target_os = "windows")]
     let restart_core_needed = socks_enabled.is_some()
@@ -197,6 +199,9 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     if log_max_size.is_some() || log_max_count.is_some() {
         update_flags.insert(UpdateFlags::LOG_FILE);
     }
+    if smart_route.is_some() {
+        update_flags.insert(UpdateFlags::SMART_ROUTE);
+    }
     if tray_inline_outbound_modes.is_some() {
         update_flags.insert(UpdateFlags::SYSTRAY_MENU);
     }
@@ -212,6 +217,11 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         CoreManager::global().restart_core().await?;
     }
     if update_flags.contains(UpdateFlags::CLASH_CONFIG) {
+        CoreManager::global().update_config_checked().await?;
+        handle::Handle::refresh_clash();
+    }
+    if update_flags.contains(UpdateFlags::SMART_ROUTE) {
+        Config::generate().await?;
         CoreManager::global().update_config_checked().await?;
         handle::Handle::refresh_clash();
     }

@@ -850,6 +850,33 @@ interface IProxyConfig
     | 'sudoku'
 }
 
+type SmartLineCategory =
+  | 'telecom'
+  | 'unicom'
+  | 'mobile'
+  | 'telecom-unicom'
+  | 'telecom-mobile'
+  | 'unicom-mobile'
+  | 'three-network'
+
+type CustomRuleSource =
+  | { kind: 'url'; url: string }
+  | { kind: 'file'; path: string }
+
+interface CustomRuleSet {
+  id: string
+  name: string
+  source: CustomRuleSource
+  enabled?: boolean
+  target?: string
+}
+
+interface SmartRouteConfig {
+  nodeCategories?: Record<string, SmartLineCategory>
+  useBuiltinRules?: boolean
+  customRules?: CustomRuleSet[]
+}
+
 interface IVergeConfig {
   app_log_level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | string
   app_log_max_size?: number // KB
@@ -944,6 +971,7 @@ interface IVergeConfig {
   enable_hover_jump_navigator?: boolean
   hover_jump_navigator_delay?: number
   enable_external_controller?: boolean
+  smart_route?: SmartRouteConfig
 }
 
 interface IWebDavFile {

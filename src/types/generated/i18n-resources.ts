@@ -1338,6 +1338,60 @@ export interface TranslationResources {
             tunUnavailable: string
           }
         }
+        smartRoute: {
+          actions: {
+            save: string
+          }
+          categories: {
+            mobile: string
+            telecom: string
+            telecomMobile: string
+            telecomUnicom: string
+            threeNetwork: string
+            unclassified: string
+            unicom: string
+            unicomMobile: string
+          }
+          description: string
+          fields: {
+            category: string
+            node: string
+            source: string
+          }
+          messages: {
+            invalidRuleUrl: string
+            noNodes: string
+            ruleNameRequired: string
+            saved: string
+          }
+          rules: {
+            addFile: string
+            addUrl: string
+            builtinHint: string
+            enableBuiltin: string
+            name: string
+            remove: string
+            targets: {
+              all: string
+              auto: string
+              direct: string
+              mobile: string
+              telecom: string
+              unicom: string
+            }
+            url: string
+          }
+          sources: {
+            provider: string
+            subscription: string
+          }
+          status: {
+            pending: string
+            ready: string
+          }
+          summary: string
+          title: string
+        }
         system: {
           fields: {
             autoLaunch: string

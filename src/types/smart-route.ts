@@ -1,5 +1,24 @@
 export type SmartOperator = 'telecom' | 'unicom' | 'mobile' | 'unknown'
 
+export type SmartLineCategory =
+  | 'telecom'
+  | 'unicom'
+  | 'mobile'
+  | 'telecom-unicom'
+  | 'telecom-mobile'
+  | 'unicom-mobile'
+  | 'three-network'
+
+export const SMART_LINE_CATEGORIES: readonly SmartLineCategory[] = [
+  'telecom',
+  'unicom',
+  'mobile',
+  'telecom-unicom',
+  'telecom-mobile',
+  'unicom-mobile',
+  'three-network',
+]
+
 const ASN_OPERATOR_RULES: Record<number, SmartOperator> = {
   4134: 'telecom',
   4837: 'unicom',
