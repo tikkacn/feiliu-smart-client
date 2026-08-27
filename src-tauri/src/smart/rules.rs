@@ -1,6 +1,6 @@
 use serde_yaml_ng::{Mapping, Value};
 
-use super::model::{CustomRuleSet, CustomRuleSource, NetworkOperator};
+use super::model::{CustomRuleSet, CustomRuleSource};
 
 const PROVIDER_INTERVAL_SECONDS: u64 = 86_400;
 const PROVIDER_PREFIX: &str = "Feiliu-BM-";
@@ -181,7 +181,10 @@ fn custom_provider_name(id: &str) -> String {
         .chars()
         .filter(|character| character.is_ascii_alphanumeric() || *character == '-' || *character == '_')
         .collect::<String>();
-    format!("{CUSTOM_PROVIDER_PREFIX}{}", if safe_id.is_empty() { "rule" } else { &safe_id })
+    format!(
+        "{CUSTOM_PROVIDER_PREFIX}{}",
+        if safe_id.is_empty() { "rule" } else { &safe_id }
+    )
 }
 
 fn custom_provider_config(source: &CustomRuleSource, id: &str) -> Option<Mapping> {
@@ -330,6 +333,7 @@ fn install_managed_rules(
     use_builtin_rules: bool,
     custom_rules: &[CustomRuleSet],
 ) {
+    let available_groups = proxy_group_names(config);
     let Some(rules) = config
         .entry("rules".into())
         .or_insert_with(|| Value::Sequence(Vec::new()))
@@ -351,13 +355,9 @@ fn install_managed_rules(
             .target
             .as_deref()
             .map(str::trim)
-            .filter(|target| is_valid_rule_target(config, target))
+            .filter(|target| is_valid_rule_target(&available_groups, target))
             .unwrap_or(default_group);
-        managed.push(format!(
-            "RULE-SET,{},{}",
-            custom_provider_name(&provider_id),
-            target
-        ));
+        managed.push(format!("RULE-SET,{},{}", custom_provider_name(&provider_id), target));
     }
     if use_builtin_rules {
         managed.push(format!("RULE-SET,{PROVIDER_PREFIX}Lan,DIRECT"));
@@ -365,11 +365,7 @@ fn install_managed_rules(
             let Some(service_group) = provider.service_group else {
                 continue;
             };
-            managed.push(format!(
-                "RULE-SET,{},{}",
-                provider_name(provider.suffix),
-                service_group
-            ));
+            managed.push(format!("RULE-SET,{},{}", provider_name(provider.suffix), service_group));
         }
         managed.push(format!("RULE-SET,{PROVIDER_PREFIX}China,DIRECT"));
         managed.push(format!("RULE-SET,{PROVIDER_PREFIX}Global,{default_group}"));
@@ -384,9 +380,8 @@ fn install_managed_rules(
     }
 }
 
-fn is_valid_rule_target(config: &Mapping, target: &str) -> bool {
-    matches!(target, "DIRECT" | "REJECT")
-        || proxy_group_names(config).iter().any(|name| name == target)
+fn is_valid_rule_target(available_groups: &[String], target: &str) -> bool {
+    matches!(target, "DIRECT" | "REJECT") || available_groups.iter().any(|name| name == target)
 }
 
 fn remove_managed_rule_providers(config: &mut Mapping) {
@@ -436,19 +431,9 @@ fn is_match_rule(rule: &str) -> bool {
         .is_some_and(|(kind, _)| kind == "MATCH")
 }
 
-#[allow(dead_code)]
-fn default_operator_group() -> &'static str {
-    match super::current_network().operator {
-        NetworkOperator::Telecom => OPERATOR_GROUPS[0],
-        NetworkOperator::Unicom => OPERATOR_GROUPS[1],
-        NetworkOperator::Mobile => OPERATOR_GROUPS[2],
-        NetworkOperator::Unknown => ALL_GROUP_NAME,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{apply_blackmatrix_rules, CustomRuleSource, CustomRuleSet};
+    use super::{CustomRuleSet, CustomRuleSource, apply_blackmatrix_rules};
     use serde_yaml_ng::Value;
 
     #[test]
@@ -462,19 +447,25 @@ mod tests {
         .expect("mapping");
 
         assert_eq!(apply_blackmatrix_rules(&mut config, "全部节点", true, &[]), 13);
-        assert!(config["rule-providers"]["Feiliu-BM-Netflix"]["url"]
-            .as_str()
-            .is_some_and(|url| url.contains("blackmatrix7")));
-        assert!(config["proxy-groups"]
-            .as_sequence()
-            .unwrap()
-            .iter()
-            .any(|group| group["name"].as_str() == Some("Netflix")));
-        assert!(config["rules"]
-            .as_sequence()
-            .unwrap()
-            .iter()
-            .any(|rule| rule.as_str() == Some("RULE-SET,Feiliu-BM-OpenAI,OpenAI")));
+        assert!(
+            config["rule-providers"]["Feiliu-BM-Netflix"]["url"]
+                .as_str()
+                .is_some_and(|url| url.contains("blackmatrix7"))
+        );
+        assert!(
+            config["proxy-groups"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .any(|group| group["name"].as_str() == Some("Netflix"))
+        );
+        assert!(
+            config["rules"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .any(|rule| rule.as_str() == Some("RULE-SET,Feiliu-BM-OpenAI,OpenAI"))
+        );
     }
 
     #[test]
@@ -513,12 +504,20 @@ mod tests {
         );
         assert!(config["rule-providers"]["Feiliu-Custom-remote"]["type"] == "http");
         assert!(config["rule-providers"]["Feiliu-Custom-local"]["type"] == "file");
-        assert!(config["rules"].as_sequence().unwrap().iter().any(|rule| {
-            rule.as_str() == Some("DOMAIN-SUFFIX,example.com,DIRECT")
-        }));
-        assert!(config["rules"].as_sequence().unwrap().iter().any(|rule| {
-            rule.as_str() == Some("RULE-SET,Feiliu-Custom-local,DIRECT")
-        }));
+        assert!(
+            config["rules"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .any(|rule| { rule.as_str() == Some("DOMAIN-SUFFIX,example.com,DIRECT") })
+        );
+        assert!(
+            config["rules"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .any(|rule| { rule.as_str() == Some("RULE-SET,Feiliu-Custom-local,DIRECT") })
+        );
     }
 
     #[test]
@@ -534,11 +533,19 @@ mod tests {
         apply_blackmatrix_rules(&mut config, "全部节点", false, &[]);
         assert!(config["rule-providers"].get("Feiliu-BM-Global").is_none());
         assert!(config["rule-providers"].get("user").is_some());
-        assert!(config["proxy-groups"].as_sequence().unwrap().iter().any(|group| {
-            group["name"].as_str() == Some("UserGroup")
-        }));
-        assert!(config["rules"].as_sequence().unwrap().iter().any(|rule| {
-            rule.as_str() == Some("RULE-SET,user,UserGroup")
-        }));
+        assert!(
+            config["proxy-groups"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .any(|group| { group["name"].as_str() == Some("UserGroup") })
+        );
+        assert!(
+            config["rules"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .any(|rule| { rule.as_str() == Some("RULE-SET,user,UserGroup") })
+        );
     }
 }

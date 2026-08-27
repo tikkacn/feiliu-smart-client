@@ -11,12 +11,7 @@ const MOBILE_GROUP_NAME: &str = "移动优化";
 const ALL_GROUP_NAME: &str = "全部节点";
 const HEALTH_CHECK_URL: &str = "https://www.gstatic.com/generate_204";
 
-const MANAGED_GROUP_NAMES: [&str; 4] = [
-    TELECOM_GROUP_NAME,
-    UNICOM_GROUP_NAME,
-    MOBILE_GROUP_NAME,
-    ALL_GROUP_NAME,
-];
+const MANAGED_GROUP_NAMES: [&str; 4] = [TELECOM_GROUP_NAME, UNICOM_GROUP_NAME, MOBILE_GROUP_NAME, ALL_GROUP_NAME];
 
 /// Adds local operator-aware route selectors to the generated runtime mapping.
 ///
@@ -40,9 +35,7 @@ pub fn apply_smart_routes(config: &mut Mapping, settings: &SmartRouteConfig) -> 
         return 0;
     };
 
-    groups.retain(|value| {
-        mapping_string(value, "name").is_none_or(|name| !MANAGED_GROUP_NAMES.contains(&name))
-    });
+    groups.retain(|value| mapping_string(value, "name").is_none_or(|name| !MANAGED_GROUP_NAMES.contains(&name)));
 
     let mut added = 0;
     for (name, operator) in [
@@ -100,11 +93,7 @@ fn existing_provider_names(config: &Mapping) -> Vec<String> {
         .collect()
 }
 
-fn categorized_nodes(
-    nodes: &[String],
-    settings: &SmartRouteConfig,
-    operator: NetworkOperator,
-) -> Vec<String> {
+fn categorized_nodes(nodes: &[String], settings: &SmartRouteConfig, operator: NetworkOperator) -> Vec<String> {
     nodes
         .iter()
         .filter(|name| {
@@ -121,11 +110,7 @@ fn build_url_test_group(name: &str, nodes: Vec<String>) -> Mapping {
     build_url_test_group_with_providers(name, nodes, Vec::new())
 }
 
-fn build_url_test_group_with_providers(
-    name: &str,
-    nodes: Vec<String>,
-    providers: Vec<String>,
-) -> Mapping {
+fn build_url_test_group_with_providers(name: &str, nodes: Vec<String>, providers: Vec<String>) -> Mapping {
     let mut group = Mapping::new();
     group.insert("name".into(), name.into());
     group.insert("type".into(), "url-test".into());
