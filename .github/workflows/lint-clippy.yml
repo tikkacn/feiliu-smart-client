@@ -2,6 +2,8 @@ name: Clippy Lint
 
 on:
   pull_request:
+  push:
+    branches: [dev]
   workflow_dispatch:
 env:
   HUSKY: 0

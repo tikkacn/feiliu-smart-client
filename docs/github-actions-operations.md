@@ -4,7 +4,7 @@
 
 ## 推荐的 Actions 分工
 
-- Pull request 检查：前端类型检查、Lint、测试、工作流语法检查和 Rust 质量检查。
+- `dev` 推送和 Pull request 检查：前端类型检查、Lint、测试、工作流语法检查和 Rust 质量检查。
 - `Auto Build`：手工触发或按项目需要开启滚动测试版本构建。
 - `Release`：创建版本标签后构建 Windows、macOS、Linux 安装包并上传到本仓库 Release。
 - `Updater CI`：只有准备好 Tauri 签名密钥后再启用，用于生成更新清单。

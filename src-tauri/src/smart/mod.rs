@@ -14,13 +14,17 @@ fn network_store() -> &'static RwLock<SmartNetworkState> {
     NETWORK_STATE.get_or_init(|| RwLock::new(SmartNetworkState::default()))
 }
 
-pub fn update_network(operator: NetworkOperator, confidence: f32) -> bool {
+/// Updates the local network hint and returns the previous state when a
+/// change was made. The previous value lets callers roll back the hint if
+/// regenerating the runtime configuration fails.
+pub fn update_network(operator: NetworkOperator, confidence: f32) -> Option<SmartNetworkState> {
     let mut state = network_store().write();
     let confidence = confidence.clamp(0.0, 1.0);
     if state.operator == operator && (state.confidence - confidence).abs() < 0.01 {
-        return false;
+        return None;
     }
 
+    let previous = state.clone();
     *state = SmartNetworkState {
         operator,
         confidence,
@@ -28,7 +32,11 @@ pub fn update_network(operator: NetworkOperator, confidence: f32) -> bool {
             .duration_since(UNIX_EPOCH)
             .map_or(0, |duration| duration.as_secs()),
     };
-    true
+    Some(previous)
+}
+
+pub fn restore_network(previous: SmartNetworkState) {
+    *network_store().write() = previous;
 }
 
 pub fn current_network() -> SmartNetworkState {

@@ -21,16 +21,18 @@ pub fn apply_smart_routes(config: &mut Mapping) -> usize {
     let operator = current_network().operator;
     order_nodes(&mut ordered_nodes, operator);
 
-    let groups = config
-        .entry("proxy-groups".into())
-        .or_insert_with(|| Value::Sequence(Vec::new()))
-        .as_sequence_mut();
-    let Some(groups) = groups else {
-        return 0;
-    };
+    {
+        let groups = config
+            .entry("proxy-groups".into())
+            .or_insert_with(|| Value::Sequence(Vec::new()))
+            .as_sequence_mut();
+        let Some(groups) = groups else {
+            return 0;
+        };
 
-    groups.retain(|value| mapping_string(value, "name") != Some(AUTO_GROUP_NAME));
-    groups.push(Value::Mapping(build_auto_group(ordered_nodes)));
+        groups.retain(|value| mapping_string(value, "name") != Some(AUTO_GROUP_NAME));
+        groups.push(Value::Mapping(build_auto_group(ordered_nodes)));
+    }
     ensure_match_rule(config);
     1
 }

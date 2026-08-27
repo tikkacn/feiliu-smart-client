@@ -7,10 +7,10 @@ const ASN_OPERATOR_RULES: Record<number, SmartOperator> = {
   9808: 'mobile',
 }
 
-export function classifySmartOperator(input: {
-  asn: number
-  isp: string
-}): { operator: SmartOperator; confidence: number } {
+export function classifySmartOperator(input: { asn: number; isp: string }): {
+  operator: SmartOperator
+  confidence: number
+} {
   const asn = Number(input.asn)
   const asnOperator = ASN_OPERATOR_RULES[asn]
   if (asnOperator) {
