@@ -26,6 +26,7 @@ COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=dependencies --chown=node:node /app/apps/control-plane-api/node_modules ./apps/control-plane-api/node_modules
 COPY --chown=node:node apps/control-plane-api ./apps/control-plane-api
 COPY --chown=node:node packages/strategy-engine ./packages/strategy-engine
+COPY --chown=node:node policy/fixtures ./policy/fixtures
 
 USER node
 EXPOSE 8787

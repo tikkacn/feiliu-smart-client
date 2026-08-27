@@ -13,5 +13,4 @@ src
 src-tauri
 crates
 template
-policy/fixtures
 *.local
