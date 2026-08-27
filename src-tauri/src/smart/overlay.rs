@@ -148,7 +148,10 @@ fn regex_escape(value: &str) -> String {
     value
         .chars()
         .flat_map(|character| {
-            if matches!(character, '\\' | '.' | '^' | '$' | '|' | '(' | ')' | '[' | ']' | '{' | '}' | '*' | '+' | '?' ) {
+            if matches!(
+                character,
+                '\\' | '.' | '^' | '$' | '|' | '(' | ')' | '[' | ']' | '{' | '}' | '*' | '+' | '?'
+            ) {
                 vec!['\\', character]
             } else {
                 vec![character]
@@ -173,10 +176,10 @@ fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping) -> &'st
     let has_matching_node = configured_node_names(&existing_proxy_names(config), settings)
         .iter()
         .any(|name| {
-        settings
-            .node_categories
-            .get(name)
-            .is_some_and(|category| category.includes(detected))
+            settings
+                .node_categories
+                .get(name)
+                .is_some_and(|category| category.includes(detected))
         });
     if has_matching_node {
         detected_group

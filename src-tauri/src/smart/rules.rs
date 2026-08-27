@@ -447,10 +447,7 @@ fn is_match_rule(rule: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CustomRuleBehavior, CustomRuleFormat, CustomRuleSet, CustomRuleSource,
-        apply_blackmatrix_rules,
-    };
+    use super::{CustomRuleBehavior, CustomRuleFormat, CustomRuleSet, CustomRuleSource, apply_blackmatrix_rules};
     use serde_yaml_ng::Value;
 
     #[test]
