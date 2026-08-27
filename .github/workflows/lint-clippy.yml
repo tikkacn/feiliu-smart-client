@@ -25,6 +25,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
       - name: Check src-tauri changes
         if: github.event_name != 'workflow_dispatch'
         id: check_changes
@@ -46,9 +49,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           echo "Manual trigger detected: skipping changes check and running clippy."
-
-      - name: Checkout Repository
-        uses: actions/checkout@v7
 
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@master
