@@ -1,6 +1,22 @@
 name: Policy Contract Check
 
 on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'policy/**'
+      - 'packages/contracts/**'
+      - 'packages/sync-adapters/**'
+      - 'packages/strategy-engine/**'
+      - 'apps/control-plane-api/**'
+      - 'apps/sync-worker/**'
+      - 'db/migrations/**'
+      - 'scripts/validate-policy-fixtures.mjs'
+      - 'scripts/validate-strategy.mjs'
+      - '.github/workflows/policy-check.yml'
+      - '.github/workflows/**'
+      - 'scripts/validate-workflows.mjs'
   pull_request:
     paths:
       - 'policy/**'
