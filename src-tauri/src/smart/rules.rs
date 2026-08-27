@@ -427,8 +427,7 @@ fn remove_service_groups(config: &mut Mapping) {
 }
 
 fn is_match_rule(rule: &str) -> bool {
-    rule.split_once(',')
-        .is_some_and(|(kind, _)| kind == "MATCH")
+    rule.split_once(',').is_some_and(|(kind, _)| kind == "MATCH")
 }
 
 #[cfg(test)]
