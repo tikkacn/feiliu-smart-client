@@ -63,7 +63,7 @@ try {
         policy.rulesVersion,
         source.rows[0].id,
         policy.contentHash,
-        ['AI', 'GitHub'],
+        JSON.stringify(['AI', 'GitHub']),
       ],
     )
     await client.query(

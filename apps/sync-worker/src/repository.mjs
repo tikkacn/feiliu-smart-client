@@ -291,7 +291,12 @@ export function createSyncRepository(connectionString) {
             'status = excluded.status,',
             'fetched_at = now()',
           ].join(' '),
-          [rules.version, sourceId, rules.contentHash, rules.categories],
+          [
+            rules.version,
+            sourceId,
+            rules.contentHash,
+            JSON.stringify(rules.categories),
+          ],
         )
         await client.query(
           'update rule_sources set last_commit = $2, last_success_at = now() where id = $1',
