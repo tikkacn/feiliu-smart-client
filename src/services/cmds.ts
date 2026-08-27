@@ -3,8 +3,8 @@ import dayjs from 'dayjs'
 
 import type { CommandFailure } from '@/services/notice-service'
 import { showNotice } from '@/services/notice-service'
-import type { FlystreamPolicy } from '@/types/flystream'
 import type { ProxyViewV1 } from '@/types/proxy-view'
+import type { SmartOperator } from '@/types/smart-route'
 import { debugLog } from '@/utils/debug'
 
 export async function copyClashEnv() {
@@ -21,12 +21,11 @@ export async function enhanceProfiles() {
   )
 }
 
-export function setFlystreamPolicy(policy: FlystreamPolicy) {
-  return invoke<ValidationOutcome>('set_flystream_policy', { policy })
-}
-
-export function clearFlystreamPolicy() {
-  return invoke<ValidationOutcome>('clear_flystream_policy')
+export function setSmartNetwork(operator: SmartOperator, confidence: number) {
+  return invoke<ValidationOutcome>('set_smart_network', {
+    operator,
+    confidence,
+  })
 }
 
 export async function patchProfilesConfig(profiles: IProfilesConfig) {

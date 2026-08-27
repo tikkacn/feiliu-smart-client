@@ -1,34 +1,45 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FlystreamPolicy {
-    pub version: String,
-    pub status: String,
-    pub content_hash: String,
-    pub generated_at: String,
-    pub operator: String,
-    pub rules_version: String,
-    pub nodes: Vec<FlystreamNode>,
-    pub pools: Vec<FlystreamPool>,
+/// The network category used to bias the local automatic route selector.
+///
+/// This is intentionally a small local value object. It is not a subscription,
+/// account or remote-service model, and it never contains node credentials.
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkOperator {
+    Telecom,
+    Unicom,
+    Mobile,
+    #[default]
+    Unknown,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FlystreamNode {
-    pub id: String,
-    pub display_name: String,
-    pub protocol: String,
-    pub enabled: bool,
+impl NetworkOperator {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "telecom" => Some(Self::Telecom),
+            "unicom" => Some(Self::Unicom),
+            "mobile" => Some(Self::Mobile),
+            "unknown" => Some(Self::Unknown),
+            _ => None,
+        }
+    }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct FlystreamPool {
-    pub id: String,
-    pub business: String,
-    pub mode: String,
-    pub node_ids: Vec<String>,
-    pub fallback_node_ids: Vec<String>,
-    pub health_check_url: Option<String>,
+pub struct SmartNetworkState {
+    pub operator: NetworkOperator,
+    pub confidence: f32,
+    pub updated_at: u64,
+}
+
+impl Default for SmartNetworkState {
+    fn default() -> Self {
+        Self {
+            operator: NetworkOperator::Unknown,
+            confidence: 0.0,
+            updated_at: 0,
+        }
+    }
 }

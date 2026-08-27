@@ -249,7 +249,7 @@ impl Config {
     pub(crate) async fn generate_with_profiles(profiles: &IProfiles) -> Result<()> {
         let (mut config, exists_keys, logs) = enhance::enhance(profiles).await?;
 
-        crate::smart::overlay::apply_current_policy(&mut config);
+        crate::smart::overlay::apply_smart_routes(&mut config);
         sanitize_tunnels_proxy(&mut config);
         // Apply only to generated core config so the saved choice survives the next launch.
         if let Some(port) = MixedPort::session_fallback() {

@@ -239,9 +239,9 @@ const HomePage = () => {
   const homeCards =
     (verge?.home_cards as HomeCardsSettings | undefined) ?? DEFAULT_HOME_CARDS
 
-  // 文档链接函数
-  const toGithubDoc = useLockFn(() => {
-    return openWebUrl('https://clash-verge-rev.github.io/index.html')
+  // 教程与软件下载入口
+  const toGuide = useLockFn(() => {
+    return openWebUrl('https://guide.tikka.cn')
   })
 
   // 新增：打开设置弹窗
@@ -331,7 +331,7 @@ const HomePage = () => {
             </IconButton>
           </Tooltip>
           <Tooltip title={t('home.page.tooltips.manual')} arrow>
-            <IconButton onClick={toGithubDoc} size="small" color="inherit">
+            <IconButton onClick={toGuide} size="small" color="inherit">
               <HelpOutlineRounded />
             </IconButton>
           </Tooltip>

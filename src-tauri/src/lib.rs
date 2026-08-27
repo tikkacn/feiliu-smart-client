@@ -212,9 +212,7 @@ mod app_init {
             cmd::get_unlock_items,
             cmd::check_media_unlock,
             cmd::check_media_unlock_item,
-            cmd::set_flystream_policy,
-            cmd::clear_flystream_policy,
-            cmd::get_flystream_policy,
+            cmd::set_smart_network,
         ]
     }
 }

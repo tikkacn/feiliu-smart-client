@@ -44,9 +44,6 @@
     "test:watch": "vitest",
     "knip:check": "knip",
     "knip:report": "knip --no-exit-code",
-    "policy:check": "node scripts/validate-policy-fixtures.mjs",
-    "strategy:check": "node scripts/validate-strategy.mjs",
-    "control-plane:check": "node apps/control-plane-api/scripts/smoke-test.mjs",
     "workflow:check": "node scripts/validate-workflows.mjs"
   },
   "dependencies": {

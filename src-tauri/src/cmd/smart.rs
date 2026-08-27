@@ -1,47 +1,31 @@
 use crate::{
     cmd::{CmdResult, coded_error},
     feat,
-    smart::{self, model::FlystreamPolicy},
+    smart::{self, model::NetworkOperator},
 };
 use clash_verge_logging::{Type, logging};
 
 #[tauri::command]
-pub async fn set_flystream_policy(
-    policy: FlystreamPolicy,
+pub async fn set_smart_network(
+    operator: String,
+    confidence: f32,
 ) -> CmdResult<crate::core::validate::ValidationOutcome> {
-    let previous = smart::replace_policy(Some(policy));
+    let Some(operator) = NetworkOperator::parse(&operator) else {
+        return Err(coded_error("SMART_ROUTE_INVALID_OPERATOR", "无法识别当前网络运营商"));
+    };
+    if !smart::update_network(operator, confidence) {
+        return Ok(crate::core::validate::ValidationOutcome::Valid);
+    }
+
     match feat::enhance_profiles().await {
-        Ok(outcome) if outcome.is_valid() => Ok(outcome),
-        Ok(outcome) => {
-            smart::replace_policy(previous);
+        Ok(outcome) if outcome.is_valid() => {
+            crate::core::handle::Handle::refresh_clash();
             Ok(outcome)
         }
+        Ok(outcome) => Ok(outcome),
         Err(error) => {
-            smart::replace_policy(previous);
-            logging!(error, Type::Config, "飞流策略应用失败: {error:#}");
-            Err(coded_error("FLYSTREAM_POLICY_APPLY_FAILED", error))
+            logging!(error, Type::Config, "自动选线配置应用失败: {error:#}");
+            Err(coded_error("SMART_ROUTE_APPLY_FAILED", error))
         }
     }
-}
-
-#[tauri::command]
-pub async fn clear_flystream_policy() -> CmdResult<crate::core::validate::ValidationOutcome> {
-    let previous = smart::replace_policy(None);
-    match feat::enhance_profiles().await {
-        Ok(outcome) if outcome.is_valid() => Ok(outcome),
-        Ok(outcome) => {
-            smart::replace_policy(previous);
-            Ok(outcome)
-        }
-        Err(error) => {
-            smart::replace_policy(previous);
-            logging!(error, Type::Config, "清除飞流策略失败: {error:#}");
-            Err(coded_error("FLYSTREAM_POLICY_CLEAR_FAILED", error))
-        }
-    }
-}
-
-#[tauri::command]
-pub fn get_flystream_policy() -> Option<FlystreamPolicy> {
-    smart::current_policy()
 }

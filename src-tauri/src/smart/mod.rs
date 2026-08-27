@@ -2,22 +2,35 @@ pub mod model;
 pub mod overlay;
 
 use std::sync::OnceLock;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
 
-use self::model::FlystreamPolicy;
+use self::model::{NetworkOperator, SmartNetworkState};
 
-static ACTIVE_POLICY: OnceLock<RwLock<Option<FlystreamPolicy>>> = OnceLock::new();
+static NETWORK_STATE: OnceLock<RwLock<SmartNetworkState>> = OnceLock::new();
 
-fn policy_store() -> &'static RwLock<Option<FlystreamPolicy>> {
-    ACTIVE_POLICY.get_or_init(|| RwLock::new(None))
+fn network_store() -> &'static RwLock<SmartNetworkState> {
+    NETWORK_STATE.get_or_init(|| RwLock::new(SmartNetworkState::default()))
 }
 
-pub fn replace_policy(policy: Option<FlystreamPolicy>) -> Option<FlystreamPolicy> {
-    let mut active = policy_store().write();
-    std::mem::replace(&mut *active, policy)
+pub fn update_network(operator: NetworkOperator, confidence: f32) -> bool {
+    let mut state = network_store().write();
+    let confidence = confidence.clamp(0.0, 1.0);
+    if state.operator == operator && (state.confidence - confidence).abs() < 0.01 {
+        return false;
+    }
+
+    *state = SmartNetworkState {
+        operator,
+        confidence,
+        updated_at: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_secs()),
+    };
+    true
 }
 
-pub fn current_policy() -> Option<FlystreamPolicy> {
-    policy_store().read().clone()
+pub fn current_network() -> SmartNetworkState {
+    network_store().read().clone()
 }

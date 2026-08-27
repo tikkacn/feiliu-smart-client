@@ -205,7 +205,6 @@ export interface TranslationResources {
           }
           tabs: {
             connections: string
-            flystream: string
             home: string
             logs: string
             profiles: string

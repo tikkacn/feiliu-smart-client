@@ -8,14 +8,17 @@ import {
 import { useClashInfo, useRuntimeConfig } from '@/hooks/use-clash'
 import { runStateQueryKey } from '@/hooks/use-system-state'
 import { useVerge } from '@/hooks/use-verge'
+import { getIpInfo } from '@/services/api'
 import {
   getAppUptime,
   getProxyView,
   getRuntimeState,
   getSystemProxy,
+  setSmartNetwork,
 } from '@/services/cmds'
 import { subscribeVergeEvents } from '@/services/events'
 import { revalidateQueries, useQuery } from '@/services/query-client'
+import { classifySmartOperator } from '@/types/smart-route'
 import { resolveDisplayedMixedPort } from '@/utils/mixed-port'
 
 import {
@@ -108,6 +111,33 @@ export const AppDataProvider = ({
     ...TQ_DEFAULTS,
   })
   const runningMode = runState?.mode
+
+  useEffect(() => {
+    let disposed = false
+
+    const refreshSmartNetwork = async () => {
+      try {
+        const ipInfo = await getIpInfo()
+        if (disposed) return
+        const network = classifySmartOperator({
+          asn: ipInfo.asn,
+          isp: ipInfo.asn_organization || ipInfo.organization,
+        })
+        await setSmartNetwork(network.operator, network.confidence)
+      } catch (error) {
+        // Automatic selection still works through Mihomo's local url-test group
+        // when the optional operator lookup is unavailable.
+        console.debug('[smart-route] network classification unavailable', error)
+      }
+    }
+
+    void refreshSmartNetwork()
+    const timer = window.setInterval(refreshSmartNetwork, 30 * 60 * 1000)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+    }
+  }, [])
 
   const { data: uptimeData } = useQuery({
     queryKey: ['appUptime'],

@@ -40,41 +40,11 @@ Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
 | Alpha(废弃) | 测试发布流程。                           | [Alpha](https://github.com/tikkacn/feiliu-smart-client/releases/tag/alpha)         |
 | AutoBuild   | 滚动更新版，适合测试反馈，可能存在缺陷。 | [AutoBuild](https://github.com/tikkacn/feiliu-smart-client/releases/tag/autobuild) |
 
-#### 安装说明和常见问题，请到 [文档页](https://clash-verge-rev.github.io/) 查看
+#### 安装说明和常见问题，请到 [飞流客户端指南](https://guide.tikka.cn) 查看
 
 ### Telegram 频道
 
-本 fork 默认不绑定上游 Telegram 频道；如需通知，请按 [GitHub Actions 运维文档](./docs/github-actions-operations.md) 配置自己的 Bot 和频道。
-
----
-
-## Promotion
-
-### ✈️ [AI云边 -- 全新架构机场 ClaudeBorder](https://cruise.54678999.xyz/#/register?code=58q5UJZc)
-
-🔥热销中使用本链接注册即送 3 天免费试用**，每日 **1GB 流量**：👉 [点此注册](https://cruise.54678999.xyz/#/register?code=58q5UJZc)
-
-#### AI云边 -- 全新架构机场。
-
-- 💻 多次**技术迭代后**全新亮相。
-- 🗺 全**高速稳定**正价节点。
-- 🌏 **海外团队**，不跑路
-- 🚀 线路**冗余**设计，自动化运维**对抗各类封锁
-- 👨‍🦲 团队架构师为**大厂**网络架构师
-- 💰 极致**稳定**，亲民价**价格**
-- 🌐 全面支持**流媒体及各AI访问**
-- 🙋 7*12小时真人客服。解决您的各类问题。
-
-🌐 官网：👉 [https://www.claudeborder.com](https://cruise.54678999.xyz/#/register?code=58q5UJZc)
-
-### 🤖 [GPTKefu —— 与 Crisp 深度整合的 AI 智能客服平台](https://gptkefu.com)
-
-- 🧠 深度理解完整对话上下文 + 图片识别，自动给出专业、精准的回复，告别机械式客服。
-- ♾️ **不限回答数量**，无额度焦虑，区别于其他按条计费的 AI 客服产品。
-- 💬 售前咨询、售后服务、复杂问题解答，全场景轻松覆盖，真实用户案例已验证效果。
-- ⚡ 3 分钟极速接入，零门槛上手，即刻提升客服效率与客户满意度。
-- 🎁 高级套餐免费试用 14 天，先体验后付费：👉 [立即试用](https://gptkefu.com)
-- 📢 智能客服TG 频道：[@crisp_ai](https://t.me/crisp_ai)
+教程、软件下载与使用说明请访问 [飞流客户端指南](https://guide.tikka.cn)。
 
 ---
 
@@ -88,17 +58,17 @@ Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
 - 可视化节点和规则编辑
 - WebDav 配置备份和同步
 
-### 飞流智能优化（可选）
+### 飞流自动选线
 
-- 可选连接 PostgreSQL 控制面，统一管理节点元数据、业务策略、规则版本和审计记录。
-- 支持 V2Board / Blackmatrix7 的 GitHub Actions 定时同步、策略发布、回滚和健康检查。
-- 客户端默认只读并使用缓存；只有在“飞流智能”页面明确点击应用后，才将策略写入当前运行时配置，不修改原始订阅文件。
+- 客户端在本地生成 `Feiliu Auto` 自动线路组，由 Mihomo 持续测速并选择当前网络下更合适的线路。
+- 可根据本地网络运营商信息调整线路候选顺序；识别失败时仍可使用测速结果完成选线。
+- 只修改运行时配置，不改写原始订阅文件，也不依赖远程管理服务。
 
-控制面和 GitHub Actions 的部署、Environment、Secret 及首次上线顺序见 [运维文档](./docs/github-actions-operations.md)。
+教程、软件下载与使用说明见 [飞流客户端指南](https://guide.tikka.cn)。
 
 ### FAQ
 
-Refer to [Doc FAQ Page](https://clash-verge-rev.github.io/faq/windows.html)
+Refer to the [Feiliu Client Guide](https://guide.tikka.cn) for installation and troubleshooting.
 
 ### Donation
 
