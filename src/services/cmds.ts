@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 
 import type { CommandFailure } from '@/services/notice-service'
 import { showNotice } from '@/services/notice-service'
+import type { FlystreamPolicy } from '@/types/flystream'
 import type { ProxyViewV1 } from '@/types/proxy-view'
 import { debugLog } from '@/utils/debug'
 
@@ -18,6 +19,14 @@ export async function enhanceProfiles() {
   return (
     (await invoke<ValidationOutcome>('enhance_profiles')).status === 'valid'
   )
+}
+
+export function setFlystreamPolicy(policy: FlystreamPolicy) {
+  return invoke<ValidationOutcome>('set_flystream_policy', { policy })
+}
+
+export function clearFlystreamPolicy() {
+  return invoke<ValidationOutcome>('clear_flystream_policy')
 }
 
 export async function patchProfilesConfig(profiles: IProfilesConfig) {
@@ -136,7 +145,7 @@ export async function forgetSelectedNode(groupName: string) {
 export async function getProxyView(): Promise<ProxyViewV1> {
   const view = await invoke<ProxyViewV1>('get_proxy_view')
   if (view.schemaVersion !== 1) {
-    throw new Error('Unsupported proxy view schema: ' + view.schemaVersion)
+    throw new Error(`Unsupported proxy view schema: ${view.schemaVersion}`)
   }
   return view
 }

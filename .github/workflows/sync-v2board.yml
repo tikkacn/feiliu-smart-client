@@ -1,0 +1,70 @@
+name: Sync V2Board Policy
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target GitHub Environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: 0
+
+concurrency:
+  group: feiliu-v2board-sync-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync V2Board nodes and publish policy
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      V2BOARD_SUBSCRIPTION_URL: ${{ secrets.V2BOARD_SUBSCRIPTION_URL }}
+      V2BOARD_TOKEN: ${{ secrets.V2BOARD_TOKEN }}
+      V2BOARD_SOURCE_NAME: ${{ vars.V2BOARD_SOURCE_NAME || 'primary' }}
+      V2BOARD_TOKEN_SECRET_REF: V2BOARD_TOKEN
+      SYNC_ACTOR: github-actions:v2board
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.19.0'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check sync configuration
+        id: config
+        shell: bash
+        run: |
+          if [[ -z "$DATABASE_URL" || -z "$V2BOARD_SUBSCRIPTION_URL" || -z "$V2BOARD_TOKEN" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "V2Board sync is not configured for this environment; skipping."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run V2Board sync
+        if: steps.config.outputs.configured == 'true'
+        run: pnpm --filter @feiliu/sync-worker sync:v2board

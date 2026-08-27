@@ -1,7 +1,7 @@
 <h1 align="center">
   <img src="./src-tauri/icons/icon.png" alt="Clash" width="128" />
   <br>
-  Continuation of <a href="https://github.com/zzzgydi/clash-verge">Clash Verge</a>
+  Feiliu Smart Client · based on <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>
   <br>
 </h1>
 
@@ -28,21 +28,23 @@ A Clash Meta GUI based on <a href="https://github.com/tauri-apps/tauri">Tauri</a
 
 ## Install
 
-请到发布页面下载对应的安装包：[Release page](https://github.com/clash-verge-rev/clash-verge-rev/releases)<br>
-Go to the [Release page](https://github.com/clash-verge-rev/clash-verge-rev/releases) to download the corresponding installation package<br>
+请到本项目发布页面下载对应的安装包：[Release page](https://github.com/tikkacn/feiliu-smart-client/releases)<br>
+Go to this fork's [Release page](https://github.com/tikkacn/feiliu-smart-client/releases) to download the corresponding installation package<br>
 Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
 
 #### 我应当怎样选择发行版
 
 | 版本        | 特征                                     | 链接                                                                                   |
 | :---------- | :--------------------------------------- | :------------------------------------------------------------------------------------- |
-| Stable      | 正式版，高可靠性，适合日常使用。         | [Release](https://github.com/clash-verge-rev/clash-verge-rev/releases)                 |
-| Alpha(废弃) | 测试发布流程。                           | [Alpha](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/alpha)         |
-| AutoBuild   | 滚动更新版，适合测试反馈，可能存在缺陷。 | [AutoBuild](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/autobuild) |
+| Stable      | 正式版，高可靠性，适合日常使用。         | [Release](https://github.com/tikkacn/feiliu-smart-client/releases)                 |
+| Alpha(废弃) | 测试发布流程。                           | [Alpha](https://github.com/tikkacn/feiliu-smart-client/releases/tag/alpha)         |
+| AutoBuild   | 滚动更新版，适合测试反馈，可能存在缺陷。 | [AutoBuild](https://github.com/tikkacn/feiliu-smart-client/releases/tag/autobuild) |
 
 #### 安装说明和常见问题，请到 [文档页](https://clash-verge-rev.github.io/) 查看
 
-### TG 频道: [@clash_verge_rev](https://t.me/clash_verge_re)
+### Telegram 频道
+
+本 fork 默认不绑定上游 Telegram 频道；如需通知，请按 [GitHub Actions 运维文档](./docs/github-actions-operations.md) 配置自己的 Bot 和频道。
 
 ---
 
@@ -85,6 +87,14 @@ Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
 - 系统代理和守卫、`TUN(虚拟网卡)` 模式。
 - 可视化节点和规则编辑
 - WebDav 配置备份和同步
+
+### 飞流智能优化（可选）
+
+- 可选连接 PostgreSQL 控制面，统一管理节点元数据、业务策略、规则版本和审计记录。
+- 支持 V2Board / Blackmatrix7 的 GitHub Actions 定时同步、策略发布、回滚和健康检查。
+- 客户端默认只读并使用缓存；只有在“飞流智能”页面明确点击应用后，才将策略写入当前运行时配置，不修改原始订阅文件。
+
+控制面和 GitHub Actions 的部署、Environment、Secret 及首次上线顺序见 [运维文档](./docs/github-actions-operations.md)。
 
 ### FAQ
 

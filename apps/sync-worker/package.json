@@ -1,0 +1,16 @@
+{
+  "name": "@feiliu/sync-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "db:migrate": "node scripts/migrate.mjs",
+    "sync:v2board": "node scripts/sync-v2board.mjs",
+    "sync:blackmatrix7": "node scripts/sync-blackmatrix7.mjs"
+  },
+  "dependencies": {
+    "@feiliu/strategy-engine": "workspace:*",
+    "@feiliu/sync-adapters": "workspace:*",
+    "pg": "^8.16.3"
+  }
+}

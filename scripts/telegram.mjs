@@ -1,11 +1,8 @@
-import { readFileSync } from 'fs'
+import { readFileSync } from 'node:fs'
 
 import axios from 'axios'
 
 import { log_error, log_info, log_success } from './utils.mjs'
-
-const CHAT_ID_RELEASE = '@clash_verge_re' // 正式发布频道
-const CHAT_ID_TEST = '@vergetest' // 测试频道
 
 async function sendTelegramNotification() {
   if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -19,13 +16,26 @@ async function sendTelegramNotification() {
       return JSON.parse(pkg).version
     })()
 
+  const serverUrl = (
+    process.env.GITHUB_SERVER_URL || 'https://github.com'
+  ).replace(/\/$/, '')
+  const repository =
+    process.env.GITHUB_REPOSITORY || 'tikkacn/feiliu-smart-client'
+  const releaseUrl = `${serverUrl}/${repository}/releases`
+
   const downloadUrl =
-    process.env.DOWNLOAD_URL ||
-    `https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v${version}`
+    process.env.DOWNLOAD_URL || `${releaseUrl}/download/v${version}`
 
   const isAutobuild =
     process.env.BUILD_TYPE === 'autobuild' || version.includes('autobuild')
-  const chatId = isAutobuild ? CHAT_ID_TEST : CHAT_ID_RELEASE
+  const chatId = isAutobuild
+    ? process.env.TELEGRAM_AUTOBUILD_CHAT_ID || process.env.TELEGRAM_CHAT_ID
+    : process.env.TELEGRAM_RELEASE_CHAT_ID || process.env.TELEGRAM_CHAT_ID
+  if (!chatId) {
+    throw new Error(
+      'TELEGRAM_CHAT_ID or a build-specific Telegram chat ID is required',
+    )
+  }
   const buildType = isAutobuild ? '滚动更新版' : '正式版'
 
   log_info(`Preparing Telegram notification for ${buildType} ${version}`)
@@ -62,7 +72,7 @@ async function sendTelegramNotification() {
         } else {
           let processedLine = line.replace(
             /\[([^\]]+)\]\(([^)]+)\)/g,
-            (match, text, url) => {
+            (_match, text, url) => {
               const encodedUrl = encodeURI(url)
               return `<a href="${encodedUrl}">${text}</a>`
             },
@@ -107,7 +117,7 @@ async function sendTelegramNotification() {
   const releaseTitle = isAutobuild ? '滚动更新版发布' : '正式发布'
   const encodedVersion = encodeURIComponent(version)
   const releaseTag = isAutobuild ? 'autobuild' : `v${version}`
-  const content = `<b>🎉 <a href="https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/${releaseTag}">Clash Verge Rev v${version}</a> ${releaseTitle}</b>\n\n${formattedContent}`
+  const content = `<b>🎉 <a href="${releaseUrl}/tag/${releaseTag}">Clash Verge Rev v${version}</a> ${releaseTitle}</b>\n\n${formattedContent}`
 
   try {
     await axios.post(
@@ -117,7 +127,7 @@ async function sendTelegramNotification() {
         text: content,
         link_preview_options: {
           is_disabled: false,
-          url: `https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/v${encodedVersion}`,
+          url: `${releaseUrl}/tag/v${encodedVersion}`,
           prefer_large_media: true,
         },
         parse_mode: 'HTML',

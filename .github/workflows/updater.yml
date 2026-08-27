@@ -7,6 +7,7 @@ env:
 
 jobs:
   release-update:
+    if: ${{ vars.FEILIU_UPDATER_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -31,6 +32,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-update-for-fixed-webview2:
+    if: ${{ vars.FEILIU_UPDATER_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

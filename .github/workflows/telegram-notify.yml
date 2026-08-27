@@ -20,6 +20,7 @@ permissions: {}
 
 jobs:
   notify-telegram:
+    if: ${{ vars.FEILIU_TELEGRAM_ENABLED == 'true' }}
     name: Notify Telegram
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +53,7 @@ jobs:
             VERSION=$(jq -r '.version' package.json)
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v${VERSION}" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=${{ github.server_url }}/${{ github.repository }}/releases/download/v${VERSION}" >> "$GITHUB_ENV"
           echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
 
       - name: Generate release.txt
@@ -99,6 +100,9 @@ jobs:
         run: node scripts/telegram.mjs
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID || secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_AUTOBUILD_CHAT_ID: ${{ vars.TELEGRAM_AUTOBUILD_CHAT_ID || secrets.TELEGRAM_AUTOBUILD_CHAT_ID }}
+          TELEGRAM_RELEASE_CHAT_ID: ${{ vars.TELEGRAM_RELEASE_CHAT_ID || secrets.TELEGRAM_RELEASE_CHAT_ID }}
           BUILD_TYPE: ${{ inputs.build_type }}
           VERSION: ${{ env.VERSION }}
           DOWNLOAD_URL: ${{ env.DOWNLOAD_URL }}

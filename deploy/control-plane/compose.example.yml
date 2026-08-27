@@ -1,0 +1,12 @@
+services:
+  control-plane-api:
+    image: ghcr.io/tikkacn/feiliu-smart-client-control-plane:latest
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      FEILIU_CLIENT_TOKEN: ${FEILIU_CLIENT_TOKEN:?set FEILIU_CLIENT_TOKEN}
+      FEILIU_ADMIN_TOKEN: ${FEILIU_ADMIN_TOKEN:?set FEILIU_ADMIN_TOKEN}
+      MINIMUM_CLIENT_VERSION: ${MINIMUM_CLIENT_VERSION:-2.5.4}

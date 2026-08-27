@@ -1,0 +1,83 @@
+name: Policy Contract Check
+
+on:
+  pull_request:
+    paths:
+      - 'policy/**'
+      - 'packages/contracts/**'
+      - 'packages/sync-adapters/**'
+      - 'packages/strategy-engine/**'
+      - 'apps/control-plane-api/**'
+      - 'apps/sync-worker/**'
+      - 'db/migrations/**'
+      - 'scripts/validate-policy-fixtures.mjs'
+      - 'scripts/validate-strategy.mjs'
+      - '.github/workflows/policy-check.yml'
+      - '.github/workflows/**'
+      - 'scripts/validate-workflows.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate policy contracts and fixtures
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: feiliu
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d feiliu"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.19.0'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate policy fixtures
+        run: node scripts/validate-policy-fixtures.mjs
+
+      - name: Validate adapters and strategy engine
+        run: node scripts/validate-strategy.mjs
+
+      - name: Smoke test control-plane API
+        run: node apps/control-plane-api/scripts/smoke-test.mjs
+
+      - name: Validate GitHub Actions workflows
+        run: node scripts/validate-workflows.mjs
+
+      - name: Apply PostgreSQL migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/feiliu
+        run: pnpm --filter @feiliu/sync-worker db:migrate
+
+      - name: Seed PostgreSQL fixture
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/feiliu
+        run: node apps/control-plane-api/scripts/seed-postgres-fixture.mjs
+
+      - name: Smoke test PostgreSQL control-plane API
+        env:
+          CONTROL_PLANE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/feiliu
+        run: node apps/control-plane-api/scripts/smoke-test.mjs

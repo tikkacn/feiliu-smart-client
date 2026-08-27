@@ -1,0 +1,61 @@
+name: Manage control-plane policy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Policy operation
+        required: true
+        default: publish
+        type: choice
+        options:
+          - publish
+          - rollback
+      policy_version:
+        description: Version to publish or roll back to; publish defaults to the fixture file version
+        required: false
+        type: string
+      environment:
+        description: Target GitHub Environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-admin-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  manage:
+    name: ${{ inputs.action }} policy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      FEILIU_ADMIN_TOKEN: ${{ secrets.FEILIU_ADMIN_TOKEN }}
+      POLICY_ACTION: ${{ inputs.action }}
+      POLICY_VERSION: ${{ inputs.policy_version }}
+    steps:
+      - name: Skip when admin API is not configured
+        if: ${{ env.API_BASE_URL == '' || env.FEILIU_ADMIN_TOKEN == '' }}
+        run: echo "API_BASE_URL or FEILIU_ADMIN_TOKEN is not configured; policy operation skipped."
+
+      - name: Checkout repository
+        if: ${{ env.API_BASE_URL != '' && env.FEILIU_ADMIN_TOKEN != '' }}
+        uses: actions/checkout@v7
+
+      - name: Install Node
+        if: ${{ env.API_BASE_URL != '' && env.FEILIU_ADMIN_TOKEN != '' }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.19.0'
+
+      - name: Execute policy operation
+        if: ${{ env.API_BASE_URL != '' && env.FEILIU_ADMIN_TOKEN != '' }}
+        run: node apps/control-plane-api/scripts/admin-command.mjs

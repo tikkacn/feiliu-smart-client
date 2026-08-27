@@ -10,9 +10,11 @@ env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
   HUSKY: 0
+  VITE_FEILIU_API_BASE_URL: ${{ vars.FEILIU_API_BASE_URL }}
+  VITE_FEILIU_CLIENT_TOKEN: ${{ vars.FEILIU_CLIENT_TOKEN }}
 concurrency:
   group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
 jobs:
   check_tag_version:
@@ -24,19 +26,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if tag is from main branch
+      - name: Check if tag is from the default branch
         run: |
           TAG_REF="${GITHUB_REF##*/}"
-          echo "Checking if tag $TAG_REF is from main branch..."
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          echo "Checking if tag $TAG_REF is from $DEFAULT_BRANCH..."
 
           TAG_COMMIT=$(git rev-list -n 1 $TAG_REF)
-          MAIN_COMMITS=$(git rev-list origin/main)
+          DEFAULT_BRANCH_COMMITS=$(git rev-list "origin/$DEFAULT_BRANCH")
 
-          if echo "$MAIN_COMMITS" | grep -q "$TAG_COMMIT"; then
-            echo "✅ Tag $TAG_REF is from main branch"
+          if echo "$DEFAULT_BRANCH_COMMITS" | grep -q "$TAG_COMMIT"; then
+            echo "✅ Tag $TAG_REF is from the default branch"
           else
-            echo "❌ Tag $TAG_REF is not from main branch"
-            echo "This release workflow only accepts tags from main branch."
+            echo "❌ Tag $TAG_REF is not from the default branch"
+            echo "This release workflow only accepts tags from the repository default branch."
             exit 1
           fi
 
@@ -104,7 +107,7 @@ jobs:
           echo "TAG_NAME=$TAG_REF" >> $GITHUB_ENV
           VERSION=$(echo "$TAG_REF" | sed 's/^v//')
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=https://github.com/clash-verge-rev/clash-verge-rev/releases/download/$TAG_REF" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=${{ github.server_url }}/${{ github.repository }}/releases/download/$TAG_REF" >> "$GITHUB_ENV"
         shell: bash
 
       - run: |
@@ -265,7 +268,7 @@ jobs:
           releaseBody: 'Draft release, will be updated later.'
           tauriScript: pnpm
           args: --target ${{ matrix.target }}
-          includeUpdaterJson: true
+          includeUpdaterJson: false
 
       - name: Attest Windows bundles
         if: matrix.os == 'windows-latest'
@@ -538,7 +541,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-update:
-    if: ${{ !contains(github.ref_name, '-rc') }}
+    if: ${{ !contains(github.ref_name, '-rc') && vars.FEILIU_UPDATER_ENABLED == 'true' }}
     name: Release Update
     runs-on: ubuntu-latest
     needs: [update_tag]
@@ -565,7 +568,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-update-for-fixed-webview2:
-    if: ${{ !contains(github.ref_name, '-rc') }}
+    if: ${{ !contains(github.ref_name, '-rc') && vars.FEILIU_UPDATER_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     needs: [update_tag]
     steps:
@@ -591,10 +594,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   submit-to-winget:
-    if: ${{ !contains(github.ref_name, '-rc') }}
+    if: ${{ !contains(github.ref_name, '-rc') && vars.FEILIU_WINGET_ENABLED == 'true' && vars.WINGET_IDENTIFIER != '' }}
     name: Submit to Winget
     runs-on: ubuntu-latest
-    needs: [update_tag, release-update]
+    needs: [update_tag]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -608,22 +611,19 @@ jobs:
       - name: Submit to Winget
         uses: vedantmgoyal9/winget-releaser@main
         with:
-          identifier: ClashVergeRev.ClashVergeRev
+          identifier: ${{ vars.WINGET_IDENTIFIER }}
           version: ${{env.VERSION}}
           release-tag: v${{env.VERSION}}
           installers-regex: '_(arm64|x64|x86)-setup\.exe$'
           token: ${{ secrets.WINGET_TOKEN  }}
 
   notify-telegram:
-    if: ${{ !contains(github.ref_name, '-rc') }}
+    if: ${{ !contains(github.ref_name, '-rc') && vars.FEILIU_TELEGRAM_ENABLED == 'true' }}
     name: Notify Telegram
     runs-on: ubuntu-latest
     needs:
       [
         update_tag,
-        release-update,
-        release-update-for-fixed-webview2,
-        submit-to-winget,
       ]
     steps:
       - name: Checkout repository
@@ -652,7 +652,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install jq
           echo "VERSION=$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=${{ github.server_url }}/${{ github.repository }}/releases/download/v$(cat package.json | jq '.version' | tr -d '"')" >> "$GITHUB_ENV"
           echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
 
       - name: Generate release.txt
@@ -699,6 +699,8 @@ jobs:
         run: node scripts/telegram.mjs
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID || secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_RELEASE_CHAT_ID: ${{ vars.TELEGRAM_RELEASE_CHAT_ID || secrets.TELEGRAM_RELEASE_CHAT_ID }}
           BUILD_TYPE: release
           VERSION: ${{ env.VERSION }}
           DOWNLOAD_URL: ${{ env.DOWNLOAD_URL }}

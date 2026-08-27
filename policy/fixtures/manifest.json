@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "0.1.0",
+  "minimumClientVersion": "2.5.4",
+  "latestPolicyVersion": "policy-2026-08-25.1",
+  "activePolicyVersion": "policy-2026-08-25.1",
+  "latestRulesVersion": "blackmatrix7-2026-08-25",
+  "policyUpdatedAt": "2026-08-25T00:00:00Z",
+  "expiresAt": "2026-08-26T00:00:00Z",
+  "apiFeatures": ["operator-detection", "business-pools", "policy-cache"]
+}

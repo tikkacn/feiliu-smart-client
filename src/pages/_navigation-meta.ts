@@ -1,5 +1,9 @@
 export const navigationItems = {
   home: { label: 'layout.components.navigation.tabs.home', path: '/' },
+  flystream: {
+    label: 'layout.components.navigation.tabs.flystream',
+    path: '/flystream',
+  },
   proxies: {
     label: 'layout.components.navigation.tabs.proxies',
     path: '/proxies',

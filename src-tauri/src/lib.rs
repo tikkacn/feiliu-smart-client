@@ -9,6 +9,7 @@ mod enhance;
 mod feat;
 mod module;
 mod process;
+mod smart;
 pub mod utils;
 
 use crate::constants::files;
@@ -211,6 +212,9 @@ mod app_init {
             cmd::get_unlock_items,
             cmd::check_media_unlock,
             cmd::check_media_unlock_item,
+            cmd::set_flystream_policy,
+            cmd::clear_flystream_policy,
+            cmd::get_flystream_policy,
         ]
     }
 }

@@ -1,0 +1,17 @@
+.git
+.github
+.husky
+.vscode
+.eslintcache
+.pnpm-store
+node_modules
+dist
+target
+coverage
+tests
+src
+src-tauri
+crates
+template
+policy/fixtures
+*.local

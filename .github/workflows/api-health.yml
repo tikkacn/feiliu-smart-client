@@ -1,0 +1,56 @@
+name: Control-plane API health
+
+on:
+  schedule:
+    - cron: '13 3 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target GitHub Environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: Check deployed control-plane API
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'staging' }}
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      FEILIU_CLIENT_TOKEN: ${{ vars.FEILIU_CLIENT_TOKEN || secrets.FEILIU_CLIENT_TOKEN }}
+    steps:
+      - name: Skip when API is not configured
+        if: ${{ env.API_BASE_URL == '' }}
+        run: echo "API_BASE_URL is not configured; health check skipped."
+
+      - name: Checkout repository
+        if: ${{ env.API_BASE_URL != '' }}
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        if: ${{ env.API_BASE_URL != '' }}
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Install Node
+        if: ${{ env.API_BASE_URL != '' }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.19.0'
+          cache: pnpm
+
+      - name: Install dependencies
+        if: ${{ env.API_BASE_URL != '' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Run API health check
+        if: ${{ env.API_BASE_URL != '' }}
+        run: pnpm --filter @feiliu/control-plane-api health:check

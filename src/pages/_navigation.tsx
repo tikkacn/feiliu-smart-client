@@ -1,3 +1,4 @@
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import DnsOutlinedIcon from '@mui/icons-material/DnsOutlined'
 import ForkRightOutlinedIcon from '@mui/icons-material/ForkRightOutlined'
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
@@ -6,7 +7,7 @@ import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import SubjectOutlinedIcon from '@mui/icons-material/SubjectOutlined'
 import WifiOutlinedIcon from '@mui/icons-material/WifiOutlined'
-import { type ComponentType, type ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 
 import ConnectionsSvg from '@/assets/image/itemicon/connections.svg?react'
 import HomeSvg from '@/assets/image/itemicon/home.svg?react'
@@ -19,6 +20,7 @@ import UnlockSvg from '@/assets/image/itemicon/unlock.svg?react'
 
 import { navigationItems } from './_navigation-meta'
 import ConnectionsPage from './connections'
+import FlystreamPage from './flystream'
 import HomePage from './home'
 import LogsPage from './logs'
 import ProfilePage from './profiles'
@@ -39,6 +41,11 @@ export const navItems: NavigationItem[] = [
     ...navigationItems.home,
     icon: [<HomeOutlinedIcon key="mui" />, <HomeSvg key="svg" />],
     Component: HomePage,
+  },
+  {
+    ...navigationItems.flystream,
+    icon: [<AutoAwesomeOutlinedIcon key="mui" />],
+    Component: FlystreamPage,
   },
   {
     ...navigationItems.proxies,
