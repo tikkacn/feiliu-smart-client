@@ -113,10 +113,7 @@ fn configured_node_names(existing_nodes: &[String], settings: &SmartRouteConfig)
 fn categorized_nodes(nodes: &[String], settings: &SmartRouteConfig, operator: NetworkOperator) -> Vec<String> {
     nodes
         .iter()
-        .filter(|name| {
-            effective_category(settings, name)
-                .is_some_and(|category| category.includes(operator))
-        })
+        .filter(|name| effective_category(settings, name).is_some_and(|category| category.includes(operator)))
         .cloned()
         .collect()
 }
@@ -189,9 +186,7 @@ fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping) -> &'st
 
     let has_matching_node = configured_node_names(&existing_proxy_names(config), settings)
         .iter()
-        .any(|name| {
-            effective_category(settings, name).is_some_and(|category| category.includes(detected))
-        });
+        .any(|name| effective_category(settings, name).is_some_and(|category| category.includes(detected)));
     if has_matching_node {
         detected_group
     } else {

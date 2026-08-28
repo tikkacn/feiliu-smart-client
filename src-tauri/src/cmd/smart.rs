@@ -2,7 +2,11 @@ use crate::{
     cmd::{CmdResult, coded_error},
     config::{Config, IVerge},
     feat,
-    smart::{self, model::{NetworkOperator, SmartClassificationSyncResult}, remote},
+    smart::{
+        self,
+        model::{NetworkOperator, SmartClassificationSyncResult},
+        remote,
+    },
 };
 use clash_verge_logging::{Type, logging};
 use std::time::{SystemTime, UNIX_EPOCH};
