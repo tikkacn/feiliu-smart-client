@@ -8,6 +8,11 @@ const CUSTOM_PROVIDER_PREFIX: &str = "Feiliu-Custom-";
 
 const OPERATOR_GROUPS: [&str; 3] = ["电信优化", "联通优化", "移动优化"];
 const ALL_GROUP_NAME: &str = "全部节点";
+const DOMESTIC_DIRECT_RULES: [&str; 3] = [
+    "GEOSITE,cn,DIRECT",
+    "GEOIP,CN,DIRECT,no-resolve",
+    "DOMAIN-SUFFIX,cn,DIRECT",
+];
 const SERVICE_GROUP_NAMES: [&str; 10] = [
     "Apple",
     "Google",
@@ -355,6 +360,14 @@ fn install_managed_rules(
         return;
     };
 
+    // These rules are an invariant of Feiliu's split-routing policy rather
+    // than an optional Blackmatrix7 feature. They must stay ahead of every
+    // user/service rule so a domestic domain or IP cannot be captured by a
+    // proxy-targeting rule first.
+    for rule in DOMESTIC_DIRECT_RULES.iter().rev() {
+        rules.insert(0, Value::String((*rule).into()));
+    }
+
     let mut managed = Vec::new();
     for rule in custom_rules.iter().filter(|rule| rule.enabled) {
         let provider_id = custom_provider_id(&rule.id);
@@ -374,13 +387,13 @@ fn install_managed_rules(
     }
     if use_builtin_rules {
         managed.push(format!("RULE-SET,{PROVIDER_PREFIX}Lan,DIRECT"));
+        managed.push(format!("RULE-SET,{PROVIDER_PREFIX}China,DIRECT"));
         for provider in BUILTIN_PROVIDERS {
             let Some(service_group) = provider.service_group else {
                 continue;
             };
             managed.push(format!("RULE-SET,{},{}", provider_name(provider.suffix), service_group));
         }
-        managed.push(format!("RULE-SET,{PROVIDER_PREFIX}China,DIRECT"));
         managed.push(format!("RULE-SET,{PROVIDER_PREFIX}Global,{default_group}"));
     }
 
@@ -417,6 +430,10 @@ fn remove_managed_rules(config: &mut Mapping) {
         let Some(rule) = rule.as_str() else {
             return true;
         };
+        if DOMESTIC_DIRECT_RULES.contains(&rule) {
+            return false;
+        }
+
         let mut fields = rule.split(',');
         if fields.next() != Some("RULE-SET") {
             return true;
@@ -479,6 +496,21 @@ mod tests {
                 .iter()
                 .any(|rule| rule.as_str() == Some("RULE-SET,Feiliu-BM-OpenAI,OpenAI"))
         );
+        let rules = config["rules"].as_sequence().unwrap();
+        assert_eq!(rules[0].as_str(), Some("GEOSITE,cn,DIRECT"));
+        assert_eq!(rules[1].as_str(), Some("GEOIP,CN,DIRECT,no-resolve"));
+        assert_eq!(rules[2].as_str(), Some("DOMAIN-SUFFIX,cn,DIRECT"));
+        assert!(
+            rules
+                .iter()
+                .position(|rule| rule.as_str() == Some("RULE-SET,Feiliu-BM-China,DIRECT"))
+                .is_some_and(|index| {
+                    rules
+                        .iter()
+                        .position(|rule| rule.as_str() == Some("RULE-SET,Feiliu-BM-Netflix,Netflix"))
+                        .is_some_and(|service_index| index < service_index)
+                })
+        );
     }
 
     #[test]
@@ -537,6 +569,10 @@ mod tests {
                 .iter()
                 .any(|rule| { rule.as_str() == Some("RULE-SET,Feiliu-Custom-local,DIRECT") })
         );
+        let rules = config["rules"].as_sequence().unwrap();
+        assert_eq!(rules[0].as_str(), Some("GEOSITE,cn,DIRECT"));
+        assert_eq!(rules[1].as_str(), Some("GEOIP,CN,DIRECT,no-resolve"));
+        assert_eq!(rules[2].as_str(), Some("DOMAIN-SUFFIX,cn,DIRECT"));
     }
 
     #[test]
