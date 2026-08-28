@@ -243,6 +243,31 @@ button:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.scan-node-health {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #8190a5;
+  font-size: 11px;
+}
+.health-pill {
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-weight: 700;
+}
+.health-pill.ok {
+  color: #147d55;
+  background: #e3f7ee;
+}
+.health-pill.warn {
+  color: #9a6b00;
+  background: #fff3d2;
+}
+.health-pill.unknown {
+  color: #65758b;
+  background: #eef2f7;
+}
 .category-picker {
   display: flex;
   flex-wrap: wrap;

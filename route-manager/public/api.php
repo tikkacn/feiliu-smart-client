@@ -43,6 +43,7 @@ if ($action === 'me' && $method === 'GET') {
     route_manager_json([
         'user' => $_SESSION['route_manager_user'],
         'csrfToken' => $_SESSION['route_manager_csrf'],
+        'hasDefaultSource' => route_manager_default_source_url() !== '',
     ]);
 }
 
@@ -59,6 +60,9 @@ if ($action === 'scan-source' && $method === 'POST') {
     route_manager_require_auth(true);
     $data = route_manager_input();
     $sourceUrl = trim((string) ($data['url'] ?? ''));
+    if ($sourceUrl === '') {
+        $sourceUrl = route_manager_default_source_url();
+    }
     if ($sourceUrl === '') {
         route_manager_json(['error' => '请填写节点来源地址'], 422);
     }
@@ -94,7 +98,7 @@ SQL);
             ':updated_at' => $now,
         ]);
         route_manager_json([
-            'source' => ['url' => $sourceUrl, 'contentType' => $source['contentType'], 'scannedAt' => $now],
+            'source' => ['host' => parse_url($sourceUrl, PHP_URL_HOST) ?: '来源地址', 'contentType' => $source['contentType'], 'scannedAt' => $now],
             'nodes' => $nodes,
             'warning' => $nodes === [] ? '来源已读取，但没有识别到节点名称。请确认使用的是指南站实际节点/订阅地址，而不是登录首页。' : null,
         ]);
@@ -106,7 +110,7 @@ SQL);
 if ($action === 'import-scanned' && $method === 'POST') {
     route_manager_require_auth(true);
     $data = route_manager_input();
-    $sourceUrl = trim((string) ($data['sourceUrl'] ?? ''));
+    $sourceUrl = trim((string) ($data['sourceUrl'] ?? '')) ?: route_manager_default_source_url();
     $nodes = $data['nodes'] ?? [];
     if (!is_array($nodes) || count($nodes) > 2000) {
         route_manager_json(['error' => '识别结果数量不正确'], 422);

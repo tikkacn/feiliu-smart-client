@@ -6,5 +6,6 @@ return [
     'password_hash' => 'REPLACE_WITH_PASSWORD_HASH',
     'session_name' => 'feiliu_route_manager',
     'cookie_secure' => true,
+    // Set this in aaPanel to the same status_page_url used by guide.uutec.net.
+    'default_source_url' => '',
 ];
-

@@ -168,6 +168,12 @@ function route_manager_category_or_null(mixed $value): ?string
     return in_array($category, route_manager_categories(), true) ? $category : null;
 }
 
+function route_manager_default_source_url(): string
+{
+    global $routeManagerConfig;
+    return trim((string) ($routeManagerConfig['default_source_url'] ?? 'https://guide.uutec.net/'));
+}
+
 function route_manager_require_auth(bool $csrf = false): void
 {
     if (empty($_SESSION['route_manager_user'])) {
@@ -303,7 +309,7 @@ function route_manager_clean_node_name(string $value): string
     return preg_replace('/\s+/u', ' ', $value) ?? $value;
 }
 
-function route_manager_node_candidate(string $name): ?array
+function route_manager_node_candidate(string $name, array $metadata = []): ?array
 {
     $displayName = route_manager_clean_node_name($name);
     $length = function_exists('mb_strlen') ? mb_strlen($displayName, 'UTF-8') : strlen($displayName);
@@ -311,7 +317,11 @@ function route_manager_node_candidate(string $name): ?array
         return null;
     }
     $matchKey = route_manager_normalize_key($displayName);
-    return $matchKey === '' ? null : ['displayName' => $displayName, 'matchKey' => $matchKey, 'category' => null];
+    return $matchKey === '' ? null : array_merge([
+        'displayName' => $displayName,
+        'matchKey' => $matchKey,
+        'category' => null,
+    ], $metadata);
 }
 
 function route_manager_scan_source(string $body): array
@@ -394,6 +404,40 @@ function route_manager_scan_source(string $body): array
                     $name = is_array($vmessData) ? (string) ($vmessData['ps'] ?? '') : '';
                 }
                 $add(route_manager_node_candidate($name));
+            }
+        }
+        if (class_exists('DOMDocument') && strlen($payload) <= 2 * 1024 * 1024 && stripos($payload, '<table') !== false) {
+            $previous = libxml_use_internal_errors(true);
+            $document = new DOMDocument();
+            $loaded = $document->loadHTML('<?xml encoding="utf-8" ?>' . $payload, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+            if ($loaded) {
+                foreach ($document->getElementsByTagName('table') as $table) {
+                    foreach ($table->getElementsByTagName('tr') as $row) {
+                        $cells = [];
+                        $hasHeader = false;
+                        foreach ($row->childNodes as $cell) {
+                            if (!$cell instanceof DOMElement || !in_array(strtolower($cell->tagName), ['th', 'td'], true)) {
+                                continue;
+                            }
+                            $hasHeader = $hasHeader || strtolower($cell->tagName) === 'th';
+                            $cells[] = trim((string) preg_replace('/\s+/u', ' ', $cell->textContent));
+                        }
+                        if ($hasHeader || count($cells) < 2 || !preg_match('/^\d+$/u', $cells[0])) {
+                            continue;
+                        }
+                        $metadata = [];
+                        if (count($cells) >= 5) {
+                            $metadata = [
+                                'reachability' => $cells[2],
+                                'status' => $cells[3],
+                                'lastSeen' => $cells[4],
+                            ];
+                        }
+                        $add(route_manager_node_candidate($cells[1], $metadata));
+                    }
+                }
             }
         }
     }

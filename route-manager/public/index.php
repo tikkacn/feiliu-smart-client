@@ -32,9 +32,9 @@
       </section>
 
       <section class="card source-card">
-        <div class="section-heading"><div><h2>自动读取节点</h2><p class="muted">填写指南站实际的节点/订阅地址，网站会自动识别节点名称。guide.uutec.net 首页是登录页，不能直接当作节点地址。</p></div><span class="source-hint">只读取名称</span></div>
+        <div class="section-heading"><div><h2>自动读取节点</h2><p class="muted">网站会自动读取指南站线路状态页中的节点名称和在线状态；也可以手动覆盖其他节点/订阅地址。</p></div><span class="source-hint">只读取名称和状态</span></div>
         <form id="source-form" class="source-form">
-          <label>节点来源地址<input id="source-url" name="url" type="url" value="https://guide.uutec.net/" placeholder="https://…" required></label>
+          <label>节点来源地址<input id="source-url" name="url" type="url" placeholder="留空使用 guide.uutec.net 状态页"></label>
           <button id="scan-source" class="primary" type="submit">检测节点</button>
         </form>
         <p id="source-status" class="muted"></p>

@@ -7,13 +7,12 @@ const categories = [
   ['unicom-mobile', '联通移动优化'],
   ['three-network', '三网优化'],
 ]
-const sourceDefault = 'https://guide.uutec.net/'
 const state = {
   csrfToken: '',
   nodes: [],
   scanNodes: [],
   filter: '',
-  sourceUrl: localStorage.getItem('feiliu-route-source-url') || sourceDefault,
+  sourceUrl: '',
 }
 const $ = (selector) => document.querySelector(selector)
 const categoryLabel = (value) =>
@@ -158,6 +157,12 @@ function renderScanToolbar() {
   )
 }
 
+function healthClass(value) {
+  if (/正常|在线|可达/u.test(value)) return 'ok'
+  if (/异常|警告|超时/u.test(value)) return 'warn'
+  return 'unknown'
+}
+
 function renderScanNodes() {
   $('#scan-count').textContent = `${state.scanNodes.length} 条已识别`
   $('#scan-selection').textContent =
@@ -166,7 +171,7 @@ function renderScanNodes() {
     state.scanNodes
       .map(
         (node, index) =>
-          `<article class="scan-node"><div class="scan-node-title"><strong>${escapeHtml(node.displayName)}</strong><code>${escapeHtml(node.matchKey)}</code></div><div class="category-picker" role="group" aria-label="为 ${escapeHtml(node.displayName)} 选择分类">${categories
+          `<article class="scan-node"><div class="scan-node-title"><strong>${escapeHtml(node.displayName)}</strong><code>${escapeHtml(node.matchKey)}</code>${node.status ? `<div class="scan-node-health"><span class="health-pill ${healthClass(node.status)}">${escapeHtml(node.status)}</span><span>${escapeHtml(node.reachability || '')}</span><span>${escapeHtml(node.lastSeen || '')}</span></div>` : ''}</div><div class="category-picker" role="group" aria-label="为 ${escapeHtml(node.displayName)} 选择分类">${categories
             .map(
               ([key, label]) =>
                 `<button type="button" class="category-chip ${node.category === key ? 'selected' : ''}" data-scan-index="${index}" data-scan-category="${key}">${label}</button>`,
@@ -252,12 +257,11 @@ $('#source-form').addEventListener('submit', async (event) => {
     })
     state.sourceUrl = sourceUrl
     state.scanNodes = payload.nodes
-    localStorage.setItem('feiliu-route-source-url', sourceUrl)
     $('#scan-panel').hidden = false
     renderScanNodes()
     $('#source-status').textContent =
       payload.warning ||
-      `已读取 ${payload.nodes.length} 条节点，可以开始点选分类。`
+      `已从 ${payload.source.host} 读取 ${payload.nodes.length} 条节点，可以开始点选分类。`
     showMessage('识别完成：请在上方为每条线路点选分类。')
   } catch (error) {
     $('#source-status').textContent = error.message
