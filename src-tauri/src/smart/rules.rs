@@ -446,6 +446,7 @@ fn is_match_rule(rule: &str) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, reason = "tests assert by panicking")]
 mod tests {
     use super::{CustomRuleBehavior, CustomRuleFormat, CustomRuleSet, CustomRuleSource, apply_blackmatrix_rules};
     use serde_yaml_ng::Value;

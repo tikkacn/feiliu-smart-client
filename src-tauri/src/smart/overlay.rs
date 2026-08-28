@@ -221,6 +221,7 @@ fn mapping_string<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, reason = "tests assert by panicking")]
 mod tests {
     use std::collections::BTreeMap;
 
