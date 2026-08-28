@@ -96,7 +96,11 @@ fn existing_provider_names(config: &Mapping) -> Vec<String> {
 
 fn configured_node_names(existing_nodes: &[String], settings: &SmartRouteConfig) -> Vec<String> {
     let mut names = existing_nodes.to_vec();
-    for name in settings.node_categories.keys() {
+    for name in settings
+        .node_categories
+        .keys()
+        .chain(settings.remote_node_categories.keys())
+    {
         if !names.iter().any(|existing| existing == name)
             && !matches!(name.to_ascii_uppercase().as_str(), "DIRECT" | "REJECT")
         {
@@ -149,14 +153,16 @@ fn build_url_test_group_with_providers(name: &str, nodes: Vec<String>, providers
 
 fn node_filter(nodes: &[String]) -> String {
     let escaped = nodes.iter().map(|name| regex_escape(name)).collect::<Vec<_>>();
-    format!("^({})$", escaped.join("|"))
+    format!("(?i)^({})$", escaped.join("|"))
 }
 
 fn regex_escape(value: &str) -> String {
     value
         .chars()
         .flat_map(|character| {
-            if matches!(
+            if character.is_whitespace() {
+                vec!['\\', 's', '+']
+            } else if matches!(
                 character,
                 '\\' | '.' | '^' | '$' | '|' | '(' | ')' | '[' | ']' | '{' | '}' | '*' | '+' | '?'
             ) {
@@ -271,9 +277,9 @@ mod tests {
                 .expect("group")
         };
         assert_eq!(group("电信优化")["include-all"], true);
-        assert_eq!(group("电信优化")["filter"], "^(telecom|both|all)$");
-        assert_eq!(group("联通优化")["filter"], "^(both|all)$");
-        assert_eq!(group("移动优化")["filter"], "^(all)$");
+        assert_eq!(group("电信优化")["filter"], "(?i)^(telecom|both|all)$");
+        assert_eq!(group("联通优化")["filter"], "(?i)^(both|all)$");
+        assert_eq!(group("移动优化")["filter"], "(?i)^(all)$");
         assert!(groups.iter().all(|group| group["name"].as_str() != Some("三网优化")));
     }
 
@@ -297,6 +303,6 @@ mod tests {
             .iter()
             .find(|group| group["name"].as_str() == Some("电信优化"))
             .expect("telecom group");
-        assert_eq!(telecom["filter"], "^(HK-01)$");
+        assert_eq!(telecom["filter"], "(?i)^(HK-01)$");
     }
 }
