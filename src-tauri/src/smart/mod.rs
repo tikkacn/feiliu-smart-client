@@ -20,19 +20,22 @@ fn network_store() -> &'static RwLock<SmartNetworkState> {
 /// change was made. The previous value lets callers roll back the hint if
 /// regenerating the runtime configuration fails.
 pub fn update_network(operator: NetworkOperator, confidence: f32) -> Option<SmartNetworkState> {
-    let mut state = network_store().write();
     let confidence = confidence.clamp(0.0, 1.0);
-    if state.operator == operator && (state.confidence - confidence).abs() < 0.01 {
-        return None;
-    }
+    let previous = {
+        let mut state = network_store().write();
+        if state.operator == operator && (state.confidence - confidence).abs() < 0.01 {
+            return None;
+        }
 
-    let previous = state.clone();
-    *state = SmartNetworkState {
-        operator,
-        confidence,
-        updated_at: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |duration| duration.as_secs()),
+        let previous = state.clone();
+        *state = SmartNetworkState {
+            operator,
+            confidence,
+            updated_at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |duration| duration.as_secs()),
+        };
+        previous
     };
     Some(previous)
 }

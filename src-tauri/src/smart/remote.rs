@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context as _, Result, bail};
 
 use super::model::{LineCategory, RemoteClassificationManifest};
 

@@ -73,7 +73,7 @@ impl LineCategory {
     }
 }
 
-fn default_builtin_rules() -> bool {
+const fn default_builtin_rules() -> bool {
     true
 }
 
@@ -123,7 +123,7 @@ pub struct CustomRuleSet {
     pub target: Option<String>,
 }
 
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 

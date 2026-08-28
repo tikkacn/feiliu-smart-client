@@ -124,18 +124,17 @@ pub fn apply_blackmatrix_rules(
     remove_service_groups(config);
 
     let mut installed = 0;
-    if use_builtin_rules {
-        if let Some(providers) = config
+    if use_builtin_rules
+        && let Some(providers) = config
             .entry("rule-providers".into())
             .or_insert_with(|| Value::Mapping(Mapping::new()))
             .as_mapping_mut()
-        {
-            for provider in BUILTIN_PROVIDERS {
-                let provider_name = provider_name(provider.suffix);
-                providers.insert(provider_name.into(), Value::Mapping(provider_config(provider)));
-            }
-            installed += BUILTIN_PROVIDERS.len();
+    {
+        for provider in BUILTIN_PROVIDERS {
+            let provider_name = provider_name(provider.suffix);
+            providers.insert(provider_name.into(), Value::Mapping(provider_config(provider)));
         }
+        installed += BUILTIN_PROVIDERS.len();
     }
 
     installed += install_custom_providers(config, custom_rules);
@@ -315,8 +314,7 @@ fn install_service_groups(
     });
 
     let mut selectable_groups = Vec::new();
-    for name in [default_group]
-        .into_iter()
+    for name in std::iter::once(default_group)
         .chain(OPERATOR_GROUPS)
         .chain([ALL_GROUP_NAME])
     {
