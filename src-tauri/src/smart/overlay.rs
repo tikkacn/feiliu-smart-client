@@ -38,15 +38,32 @@ pub fn apply_smart_routes(config: &mut Mapping, settings: &SmartRouteConfig) -> 
 
     groups.retain(|value| mapping_string(value, "name").is_none_or(|name| !MANAGED_GROUP_NAMES.contains(&name)));
 
+    // A normal remote profile contains its usable nodes directly in
+    // `proxies`. In that case the subscription is the entitlement boundary:
+    // the classification catalog may contain VIP-only nodes, but those names
+    // must never enter a regular user's generated optimization filters. A
+    // provider-backed profile is different because Mihomo resolves its nodes
+    // after generation, so its published catalog names are retained as a
+    // filter and Mihomo performs the final provider intersection.
+    let classification_candidates = if provider_names.is_empty() {
+        existing_nodes.clone()
+    } else {
+        configured_node_names(&existing_nodes, settings)
+    };
+
     let mut added = 0;
     for (name, operator) in [
         (TELECOM_GROUP_NAME, NetworkOperator::Telecom),
         (UNICOM_GROUP_NAME, NetworkOperator::Unicom),
         (MOBILE_GROUP_NAME, NetworkOperator::Mobile),
     ] {
-        let nodes = categorized_nodes(&configured_node_names(&existing_nodes, settings), settings, operator);
+        let nodes = categorized_nodes(&classification_candidates, settings, operator);
         if !nodes.is_empty() {
-            groups.push(Value::Mapping(build_url_test_group(name, nodes, provider_names.clone())));
+            groups.push(Value::Mapping(build_url_test_group(
+                name,
+                nodes,
+                provider_names.clone(),
+            )));
             added += 1;
         }
     }
@@ -60,7 +77,7 @@ pub fn apply_smart_routes(config: &mut Mapping, settings: &SmartRouteConfig) -> 
         added += 1;
     }
 
-    let default_group = selected_default_group(settings, config);
+    let default_group = selected_default_group(settings, config, &provider_names);
     ensure_match_rule(config, default_group);
     super::rules::apply_blackmatrix_rules(
         config,
@@ -128,7 +145,8 @@ fn effective_category(settings: &SmartRouteConfig, name: &str) -> Option<super::
         .get(name)
         .copied()
         .or_else(|| {
-            settings.remote_node_categories
+            settings
+                .remote_node_categories
                 .iter()
                 .find(|(key, _)| normalize_node_key(key) == normalized_name)
                 .map(|(_, category)| *category)
@@ -188,7 +206,7 @@ fn regex_escape(value: &str) -> String {
         .collect()
 }
 
-fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping) -> &'static str {
+fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping, provider_names: &[String]) -> &'static str {
     let detected = current_network().operator;
     let detected_group = match detected {
         NetworkOperator::Telecom => TELECOM_GROUP_NAME,
@@ -201,7 +219,13 @@ fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping) -> &'st
         return ALL_GROUP_NAME;
     }
 
-    let has_matching_node = configured_node_names(&existing_proxy_names(config), settings)
+    let existing_nodes = existing_proxy_names(config);
+    let candidates = if provider_names.is_empty() {
+        existing_nodes
+    } else {
+        configured_node_names(&existing_nodes, settings)
+    };
+    let has_matching_node = candidates
         .iter()
         .any(|name| effective_category(settings, name).is_some_and(|category| category.includes(detected)));
     if has_matching_node {
@@ -345,8 +369,30 @@ mod tests {
             .find(|group| group["name"].as_str() == Some("电信优化"))
             .expect("telecom group");
         assert_eq!(telecom["filter"], "(?i)^(HK-01)$");
-        assert!(groups
+        assert!(groups.iter().all(|group| group["name"].as_str() != Some("移动优化")));
+    }
+
+    #[test]
+    fn catalog_only_nodes_are_not_added_to_static_subscription_groups() {
+        let mut config = serde_yaml_ng::from_str::<Value>(
+            "proxies:\n  - name: normal\n    type: vmess\nproxy-groups: []\nrules:\n  - MATCH,Proxy\n",
+        )
+        .expect("parse config")
+        .as_mapping()
+        .cloned()
+        .expect("mapping");
+        let settings = SmartRouteConfig {
+            node_categories: BTreeMap::from([(String::from("normal"), LineCategory::Telecom)]),
+            remote_node_categories: BTreeMap::from([(String::from("vip-only"), LineCategory::Telecom)]),
+            ..SmartRouteConfig::default()
+        };
+
+        apply_smart_routes(&mut config, &settings);
+        let groups = config["proxy-groups"].as_sequence().expect("groups");
+        let telecom = groups
             .iter()
-            .all(|group| group["name"].as_str() != Some("移动优化")));
+            .find(|group| group["name"].as_str() == Some("电信优化"))
+            .expect("telecom group");
+        assert_eq!(telecom["filter"], "(?i)^(normal)$");
     }
 }
