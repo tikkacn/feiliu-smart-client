@@ -77,6 +77,8 @@ export const LayoutItem = (props: Props) => {
             paddingLeft: 1,
             paddingRight: 1,
             marginRight: 1.25,
+            minHeight: 44,
+            position: 'relative',
             cursor: draggable ? 'grab' : 'pointer',
             '&:active': draggable ? { cursor: 'grabbing' } : {},
             '& .MuiListItemText-primary': {
@@ -106,22 +108,58 @@ export const LayoutItem = (props: Props) => {
           <ListItemIcon
             sx={{
               color: 'text.primary',
-              marginLeft: '6px',
+              position: navCollapsed ? 'static' : 'absolute',
+              left: navCollapsed ? 0 : 8,
+              minWidth: 36,
+              width: 36,
+              height: 36,
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               cursor: draggable ? 'grab' : 'inherit',
+              '& .MuiSvgIcon-root, & > svg': {
+                width: 24,
+                height: 24,
+                fontSize: 24,
+                flexShrink: 0,
+                display: 'block',
+              },
             }}
           >
             {icon[0]}
           </ListItemIcon>
         )}
         {effectiveMenuIcon === 'colorful' && (
-          <ListItemIcon sx={{ cursor: draggable ? 'grab' : 'inherit' }}>
+          <ListItemIcon
+            sx={{
+              position: navCollapsed ? 'static' : 'absolute',
+              left: navCollapsed ? 0 : 8,
+              minWidth: 36,
+              width: 36,
+              height: 36,
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: draggable ? 'grab' : 'inherit',
+              '& .MuiSvgIcon-root, & > svg': {
+                width: 24,
+                height: 24,
+                fontSize: 24,
+                flexShrink: 0,
+                display: 'block',
+              },
+            }}
+          >
             {icon[1]}
           </ListItemIcon>
         )}
         <ListItemText
           sx={{
+            flex: 1,
             textAlign: 'center',
-            marginLeft: effectiveMenuIcon === 'disable' ? '' : '-35px',
+            margin: 0,
           }}
           primary={children}
         />

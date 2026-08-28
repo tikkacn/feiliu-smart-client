@@ -40,8 +40,9 @@ pub async fn set_smart_network(
     }
 }
 
-/// Fetches the published node classifications from the Feiliu management site
-/// and stores them separately from the user's local overrides.
+/// Fetches the published node classifications from the Feiliu management site.
+/// The published classification is authoritative; legacy local classifications
+/// are cleared after a successful fetch so they cannot override website data.
 #[tauri::command]
 pub async fn sync_smart_classifications() -> CmdResult<SmartClassificationSyncResult> {
     let manifest = remote::fetch_manifest()
@@ -58,6 +59,7 @@ pub async fn sync_smart_classifications() -> CmdResult<SmartClassificationSyncRe
         .smart_route
         .clone()
         .unwrap_or_default();
+    smart_route.node_categories.clear();
     smart_route.remote_node_categories = categories.clone();
     smart_route.remote_manifest_version = Some(manifest.version);
     smart_route.remote_manifest_updated_at = Some(manifest.updated_at.clone());

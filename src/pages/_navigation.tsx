@@ -59,7 +59,7 @@ export const navItems: NavigationItem[] = [
   },
   {
     ...navigationItems.lineOptimization,
-    icon: [<TuneRoundedIcon key="mui" />],
+    icon: [<TuneRoundedIcon key="mui" />, <TuneRoundedIcon key="colorful" />],
     Component: LineOptimizationPage,
   },
   {

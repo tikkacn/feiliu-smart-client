@@ -61,6 +61,8 @@ const TQ_DEFAULTS = {
   retry: 2,
 } as const
 
+const SMART_CLASSIFICATION_REFRESH_INTERVAL = 6 * 60 * 60 * 1000
+
 const SMART_OPERATOR_LABEL_KEYS: Record<SmartOperator, string> = {
   telecom: 'settings.sections.smartRoute.network.telecom',
   unicom: 'settings.sections.smartRoute.network.unicom',
@@ -159,6 +161,7 @@ export const AppDataProvider = ({
     [proxyView?.records],
   )
   const remoteSyncSignatureRef = useRef<string | null>(null)
+  const hasVerge = Boolean(verge)
   const detectedOperatorRef = useRef<SmartOperator | null>(null)
   const [smartNetworkPrompt, setSmartNetworkPrompt] =
     React.useState<SmartNetworkPrompt | null>(null)
@@ -167,22 +170,40 @@ export const AppDataProvider = ({
   const [applyingSmartNetwork, setApplyingSmartNetwork] = React.useState(false)
 
   useEffect(() => {
-    if (
-      !verge ||
-      !proxyNodeSignature ||
-      remoteSyncSignatureRef.current === proxyNodeSignature
-    ) {
+    if (!hasVerge || !proxyNodeSignature) {
       return
     }
 
-    remoteSyncSignatureRef.current = proxyNodeSignature
-    void syncSmartClassifications().catch((error) => {
-      // The last successful manifest remains in the local config. A manual
-      // retry is available on the line optimization page when the service is
-      // temporarily unavailable.
-      console.debug('[smart-route] remote classification unavailable', error)
-    })
-  }, [proxyNodeSignature, verge])
+    let disposed = false
+    const sync = async (force = false) => {
+      if (
+        disposed ||
+        (!force && remoteSyncSignatureRef.current === proxyNodeSignature)
+      ) {
+        return
+      }
+
+      remoteSyncSignatureRef.current = proxyNodeSignature
+      try {
+        await syncSmartClassifications()
+      } catch (error) {
+        remoteSyncSignatureRef.current = null
+        // The last successful manifest remains in the local config. A later
+        // periodic refresh or subscription change will retry the sync.
+        console.debug('[smart-route] remote classification unavailable', error)
+      }
+    }
+
+    void sync()
+    const timer = window.setInterval(() => {
+      void sync(true)
+    }, SMART_CLASSIFICATION_REFRESH_INTERVAL)
+
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+    }
+  }, [hasVerge, proxyNodeSignature])
 
   useEffect(() => {
     if (!proxyNodeSignature) return

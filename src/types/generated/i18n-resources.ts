@@ -1364,6 +1364,7 @@ export interface TranslationResources {
             noNodes: string
             ruleNameRequired: string
             saved: string
+            updated: string
           }
           network: {
             changed: string
@@ -1402,6 +1403,7 @@ export interface TranslationResources {
               telecom: string
               unicom: string
             }
+            updateNow: string
             url: string
           }
           sources: {

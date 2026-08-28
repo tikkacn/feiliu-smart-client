@@ -197,7 +197,7 @@ pub struct IVerge {
 
     pub enable_hover_jump_navigator: Option<bool>,
 
-    /// User-owned local line classifications used by Feiliu smart routing.
+    /// Feiliu smart-routing settings and the downloaded line classifications.
     pub smart_route: Option<SmartRouteConfig>,
 
     /// 代理页面自动滚动延迟（毫秒）

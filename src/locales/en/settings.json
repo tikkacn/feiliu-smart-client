@@ -155,7 +155,7 @@
     },
     "smartRoute": {
       "title": "Line Optimization",
-      "description": "Assign each line to one operator combination. The Telecom, Unicom, and Mobile runtime groups use every line that contains the corresponding operator and continuously test latency. Unclassified lines remain available in all nodes and individual node selection.",
+      "description": "Line classifications are maintained automatically by the service. After subscription nodes are loaded, the client fetches the latest classifications and tests the lines for your operator; mainland traffic stays direct while blocked overseas traffic follows the built-in rules.",
       "network": {
         "title": "Confirm line optimization operator",
         "changed": "Network operator changed",
@@ -200,7 +200,8 @@
       },
       "rules": {
         "enableBuiltin": "Enable built-in Blackmatrix7 rules",
-        "builtinHint": "Built-in rules update automatically every day. You can also add your own remote URL or local rule file. Disabling built-in rules only turns off Feiliu-managed Blackmatrix7 rules and does not delete other subscription rules. Sources are read as Mihomo rule providers.",
+        "builtinHint": "Built-in Blackmatrix7 rules update automatically every day. Use the button to update them immediately. Disabling this switch only turns off Feiliu-managed built-in rules and does not delete other subscription rules.",
+        "updateNow": "Update built-in rules now",
         "name": "Rule name",
         "url": "Rule set URL",
         "behaviors": {
@@ -227,7 +228,8 @@
       },
       "messages": {
         "noNodes": "No usable nodes have been loaded. Add a valid subscription and load its nodes before classifying lines.",
-        "saved": "Line classifications and rule settings saved; the runtime configuration is being updated.",
+        "updated": "Line optimization settings updated; the runtime configuration is refreshing.",
+        "saved": "Line optimization settings updated; the runtime configuration is refreshing.",
         "ruleNameRequired": "Enter a rule name first.",
         "invalidRuleUrl": "Enter a rule set URL starting with http:// or https://."
       }

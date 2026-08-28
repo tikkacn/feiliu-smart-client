@@ -127,18 +127,14 @@ const fn default_enabled() -> bool {
     true
 }
 
-/// Local, user-owned smart-routing settings. The map key is the Mihomo proxy
-/// name so newly imported nodes remain unclassified until the user explicitly
-/// assigns one of the seven categories.
+/// Smart-routing settings. Published node classifications are downloaded from
+/// the Feiliu management site after subscription nodes are available.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SmartRouteConfig {
     #[serde(default)]
     pub node_categories: BTreeMap<String, LineCategory>,
     /// Categories published by the Feiliu line-classification service.
-    ///
-    /// These are defaults only. `node_categories` contains the user's local
-    /// overrides and always wins when both maps contain the same node.
     #[serde(default)]
     pub remote_node_categories: BTreeMap<String, LineCategory>,
     #[serde(default)]

@@ -14,7 +14,7 @@ const HEALTH_CHECK_URL: &str = "https://www.gstatic.com/generate_204";
 
 const MANAGED_GROUP_NAMES: [&str; 4] = [TELECOM_GROUP_NAME, UNICOM_GROUP_NAME, MOBILE_GROUP_NAME, ALL_GROUP_NAME];
 
-/// Adds local operator-aware route selectors to the generated runtime mapping.
+/// Adds operator-aware route selectors to the generated runtime mapping.
 ///
 /// The line settings use one of the seven non-empty operator combinations. A
 /// runtime group is built from every category containing that operator, so a
