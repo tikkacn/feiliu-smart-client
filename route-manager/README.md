@@ -14,7 +14,7 @@
 
 1. 在 aaPanel 新增网站，域名填写 `jiedian.328671.xyz`，运行环境选择 PHP 8.1 或更高版本。
 2. 为站点申请 HTTPS，并确认 PHP-FPM 用户对 `storage` 目录有写权限。
-3. GitHub Actions 部署需要配置 `VPS_SSH_KEY`、`VPS_HOST`、`VPS_USER`、`VPS_SITE_ROOT` 和 `ROUTE_MANAGER_ADMIN_PASSWORD` 五个 Actions Secret。首次部署会用最后一个 Secret 自动生成管理账号；后续部署只执行数据库迁移，不会覆盖密码。
+3. GitHub Actions 部署需要先在仓库 Variables 中设置 `ROUTE_MANAGER_DEPLOY_ENABLED=true`，并在 Secrets 中配置 `VPS_SSH_KEY`、`VPS_HOST`、`VPS_USER`、`VPS_SITE_ROOT` 和 `ROUTE_MANAGER_ADMIN_PASSWORD`。首次部署会用最后一个 Secret 自动生成管理账号；后续部署只执行数据库迁移，不会覆盖密码。
 4. 如果不使用 Actions，也可以在项目根目录执行 `php route-manager/scripts/install.php`，按提示输入管理密码。
 5. 打开网站管理页，录入节点分类并点击“发布分类配置”。
 
