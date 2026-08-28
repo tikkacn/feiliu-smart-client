@@ -52,7 +52,104 @@ if ($action === 'manifest' && $method === 'GET') {
 
 if ($action === 'nodes' && $method === 'GET') {
     route_manager_require_auth();
-    route_manager_json(['nodes' => $database->query('SELECT id, display_name AS displayName, match_key AS matchKey, category, enabled, notes, created_at AS createdAt, updated_at AS updatedAt FROM nodes ORDER BY updated_at DESC, id DESC')->fetchAll()]);
+    route_manager_json(['nodes' => $database->query('SELECT id, display_name AS displayName, match_key AS matchKey, category, enabled, notes, source_url AS sourceUrl, created_at AS createdAt, updated_at AS updatedAt FROM nodes ORDER BY updated_at DESC, id DESC')->fetchAll()]);
+}
+
+if ($action === 'scan-source' && $method === 'POST') {
+    route_manager_require_auth(true);
+    $data = route_manager_input();
+    $sourceUrl = trim((string) ($data['url'] ?? ''));
+    if ($sourceUrl === '') {
+        route_manager_json(['error' => '请填写节点来源地址'], 422);
+    }
+    try {
+        $source = route_manager_fetch_source($sourceUrl);
+        $nodes = route_manager_scan_source($source['body']);
+        $existingStatement = $database->prepare('SELECT category, enabled, notes FROM nodes WHERE match_key = :match_key LIMIT 1');
+        foreach ($nodes as &$node) {
+            $existingStatement->execute([':match_key' => $node['matchKey']]);
+            $existing = $existingStatement->fetch();
+            if ($existing) {
+                $node['category'] = $existing['category'];
+                $node['enabled'] = (bool) $existing['enabled'];
+                $node['notes'] = $existing['notes'];
+            } else {
+                $node['enabled'] = false;
+                $node['notes'] = '';
+            }
+        }
+        unset($node);
+        $now = gmdate('c');
+        $statement = $database->prepare(<<<'SQL'
+INSERT INTO node_sources (name, url, last_scan_at, last_scan_count, last_error, created_at, updated_at)
+VALUES (:name, :url, :last_scan_at, :last_scan_count, '', :created_at, :updated_at)
+ON CONFLICT(url) DO UPDATE SET last_scan_at = excluded.last_scan_at, last_scan_count = excluded.last_scan_count, last_error = '', updated_at = excluded.updated_at
+SQL);
+        $statement->execute([
+            ':name' => parse_url($sourceUrl, PHP_URL_HOST) ?: '节点来源',
+            ':url' => $sourceUrl,
+            ':last_scan_at' => $now,
+            ':last_scan_count' => count($nodes),
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
+        route_manager_json([
+            'source' => ['url' => $sourceUrl, 'contentType' => $source['contentType'], 'scannedAt' => $now],
+            'nodes' => $nodes,
+            'warning' => $nodes === [] ? '来源已读取，但没有识别到节点名称。请确认使用的是指南站实际节点/订阅地址，而不是登录首页。' : null,
+        ]);
+    } catch (Throwable $error) {
+        route_manager_json(['error' => $error->getMessage()], 422);
+    }
+}
+
+if ($action === 'import-scanned' && $method === 'POST') {
+    route_manager_require_auth(true);
+    $data = route_manager_input();
+    $sourceUrl = trim((string) ($data['sourceUrl'] ?? ''));
+    $nodes = $data['nodes'] ?? [];
+    if (!is_array($nodes) || count($nodes) > 2000) {
+        route_manager_json(['error' => '识别结果数量不正确'], 422);
+    }
+    $now = gmdate('c');
+    $statement = $database->prepare(<<<'SQL'
+INSERT INTO nodes (display_name, match_key, category, enabled, notes, source_url, created_at, updated_at)
+VALUES (:display_name, :match_key, :category, :enabled, :notes, :source_url, :created_at, :updated_at)
+ON CONFLICT(match_key) DO UPDATE SET display_name = excluded.display_name, category = excluded.category, enabled = excluded.enabled, notes = excluded.notes, source_url = excluded.source_url, updated_at = excluded.updated_at
+SQL);
+    $saved = 0;
+    $database->beginTransaction();
+    try {
+        foreach ($nodes as $node) {
+            if (!is_array($node)) {
+                continue;
+            }
+            $displayName = trim((string) ($node['displayName'] ?? ''));
+            $matchKey = route_manager_normalize_key((string) ($node['matchKey'] ?? $displayName));
+            if ($displayName === '' || $matchKey === '') {
+                continue;
+            }
+            $category = route_manager_category_or_null($node['category'] ?? null);
+            $statement->execute([
+                ':display_name' => $displayName,
+                ':match_key' => $matchKey,
+                ':category' => $category,
+                ':enabled' => $category !== null && !empty($node['enabled']) ? 1 : 0,
+                ':notes' => trim((string) ($node['notes'] ?? '')),
+                ':source_url' => $sourceUrl,
+                ':created_at' => $now,
+                ':updated_at' => $now,
+            ]);
+            $saved++;
+        }
+        $database->commit();
+    } catch (Throwable $error) {
+        if ($database->inTransaction()) {
+            $database->rollBack();
+        }
+        route_manager_json(['error' => '保存识别结果失败'], 422);
+    }
+    route_manager_json(['saved' => $saved]);
 }
 
 if ($action === 'save-node' && $method === 'POST') {
@@ -60,11 +157,14 @@ if ($action === 'save-node' && $method === 'POST') {
     $data = route_manager_input();
     $displayName = trim((string) ($data['displayName'] ?? ''));
     $matchKey = route_manager_normalize_key((string) ($data['matchKey'] ?? $displayName));
-    $category = (string) ($data['category'] ?? '');
+    $category = route_manager_category_or_null($data['category'] ?? null);
     $notes = trim((string) ($data['notes'] ?? ''));
     $enabled = !empty($data['enabled']) ? 1 : 0;
-    if ($displayName === '' || $matchKey === '' || !in_array($category, route_manager_categories(), true)) {
-        route_manager_json(['error' => '节点名称、匹配名称和线路分类不能为空'], 422);
+    if ($displayName === '' || $matchKey === '') {
+        route_manager_json(['error' => '节点名称和匹配名称不能为空'], 422);
+    }
+    if ($category === null) {
+        $enabled = 0;
     }
     $now = gmdate('c');
     $id = isset($data['id']) && $data['id'] !== '' ? (int) $data['id'] : null;
@@ -84,7 +184,7 @@ if ($action === 'save-node' && $method === 'POST') {
             route_manager_json(['error' => str_contains($error->getMessage(), 'UNIQUE') ? '匹配名称已经存在' : '保存节点失败'], 422);
         }
     } else {
-        $statement = $database->prepare('INSERT INTO nodes (display_name, match_key, category, enabled, notes, created_at, updated_at) VALUES (:display_name, :match_key, :category, :enabled, :notes, :created_at, :updated_at)');
+        $statement = $database->prepare('INSERT INTO nodes (display_name, match_key, category, enabled, notes, source_url, created_at, updated_at) VALUES (:display_name, :match_key, :category, :enabled, :notes, :source_url, :created_at, :updated_at)');
         try {
             $statement->execute([
                 ':display_name' => $displayName,
@@ -92,6 +192,7 @@ if ($action === 'save-node' && $method === 'POST') {
                 ':category' => $category,
                 ':enabled' => $enabled,
                 ':notes' => $notes,
+                ':source_url' => '',
                 ':created_at' => $now,
                 ':updated_at' => $now,
             ]);
@@ -127,20 +228,22 @@ if ($action === 'bulk-import' && $method === 'POST') {
             if (count($parts) !== 2) {
                 continue;
             }
-            [$displayName, $category] = array_map('trim', $parts);
+            [$displayName, $categoryValue] = array_map('trim', $parts);
             $matchKey = route_manager_normalize_key($displayName);
-            if ($matchKey === '' || !in_array($category, route_manager_categories(), true)) {
+            $category = route_manager_category_or_null($categoryValue);
+            if ($matchKey === '') {
                 continue;
             }
             $statement = $database->prepare(<<<'SQL'
-INSERT INTO nodes (display_name, match_key, category, enabled, notes, created_at, updated_at)
-VALUES (:display_name, :match_key, :category, 1, '', :created_at, :updated_at)
-ON CONFLICT(match_key) DO UPDATE SET display_name = excluded.display_name, category = excluded.category, enabled = 1, updated_at = excluded.updated_at
+INSERT INTO nodes (display_name, match_key, category, enabled, notes, source_url, created_at, updated_at)
+VALUES (:display_name, :match_key, :category, :enabled, '', '', :created_at, :updated_at)
+ON CONFLICT(match_key) DO UPDATE SET display_name = excluded.display_name, category = excluded.category, enabled = excluded.enabled, updated_at = excluded.updated_at
 SQL);
             $statement->execute([
                 ':display_name' => $displayName,
                 ':match_key' => $matchKey,
                 ':category' => $category,
+                ':enabled' => $category !== null ? 1 : 0,
                 ':created_at' => $now,
                 ':updated_at' => $now,
             ]);
@@ -158,11 +261,11 @@ SQL);
 
 if ($action === 'publish' && $method === 'POST') {
     route_manager_require_auth(true);
-    $nodes = $database->query('SELECT match_key, category FROM nodes WHERE enabled = 1 ORDER BY id ASC')->fetchAll();
+    $nodes = $database->query('SELECT match_key, category FROM nodes WHERE enabled = 1 AND category IS NOT NULL ORDER BY id ASC')->fetchAll();
     $nextVersion = (int) ($database->query('SELECT COALESCE(MAX(version), 0) + 1 FROM publish_versions')->fetchColumn());
     $createdAt = gmdate('c');
     $payload = json_encode([
-        'schemaVersion' => ROUTE_MANAGER_SCHEMA_VERSION,
+        'schemaVersion' => ROUTE_MANAGER_MANIFEST_SCHEMA_VERSION,
         'version' => $nextVersion,
         'updatedAt' => $createdAt,
         'nodes' => array_map(static fn (array $node): array => ['matchKey' => $node['match_key'], 'category' => $node['category']], $nodes),

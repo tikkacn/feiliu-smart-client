@@ -7,10 +7,17 @@ const categories = [
   ['unicom-mobile', '联通移动优化'],
   ['three-network', '三网优化'],
 ]
-const state = { csrfToken: '', nodes: [], filter: '' }
+const sourceDefault = 'https://guide.uutec.net/'
+const state = {
+  csrfToken: '',
+  nodes: [],
+  scanNodes: [],
+  filter: '',
+  sourceUrl: localStorage.getItem('feiliu-route-source-url') || sourceDefault,
+}
 const $ = (selector) => document.querySelector(selector)
 const categoryLabel = (value) =>
-  categories.find(([key]) => key === value)?.[1] ?? value
+  categories.find(([key]) => key === value)?.[1] ?? '暂不归类'
 
 async function api(action, options = {}) {
   const headers = {
@@ -34,26 +41,34 @@ function showMessage(text, error = false) {
   target.textContent = text
   target.className = error ? 'message error' : 'message'
 }
+
 function fillCategories() {
-  $('#node-form [name="category"]').innerHTML = categories
-    .map(([key, label]) => `<option value="${key}">${label}（${key}）</option>`)
-    .join('')
+  $('#node-form [name="category"]').innerHTML =
+    '<option value="">暂不归类（不发布）</option>' +
+    categories
+      .map(([key, label]) => `<option value="${key}">${label}</option>`)
+      .join('')
 }
+
 function resetForm() {
   $('#node-form').reset()
   $('#node-form [name="id"]').value = ''
+  $('#node-form [name="category"]').value = ''
   $('#node-form [name="enabled"]').checked = true
 }
+
 function editNode(node) {
   const form = $('#node-form')
-  for (const key of ['id', 'displayName', 'matchKey', 'category', 'notes'])
+  for (const key of ['id', 'displayName', 'matchKey', 'notes'])
     form.elements[key].value = node[key] ?? ''
-  form.elements.enabled.checked = Boolean(node.enabled)
+  form.elements.category.value = node.category ?? ''
+  form.elements.enabled.checked = Boolean(node.enabled && node.category)
   window.scrollTo({
     top: form.closest('.card').offsetTop - 18,
     behavior: 'smooth',
   })
 }
+
 function renderNodes() {
   const filter = state.filter.toLowerCase()
   const nodes = state.nodes.filter(
@@ -67,7 +82,7 @@ function renderNodes() {
     nodes
       .map(
         (node) =>
-          `<tr><td>${escapeHtml(node.displayName)}</td><td><code>${escapeHtml(node.matchKey)}</code></td><td><span class="badge">${categoryLabel(node.category)}</span></td><td><span class="badge ${node.enabled ? '' : 'off'}">${node.enabled ? '已启用' : '已停用'}</span></td><td class="actions"><button class="secondary" data-edit="${node.id}">编辑</button><button class="ghost" data-delete="${node.id}">删除</button></td></tr>`,
+          `<tr><td>${escapeHtml(node.displayName)}</td><td><code>${escapeHtml(node.matchKey)}</code></td><td><span class="badge ${node.category ? '' : 'unclassified'}">${categoryLabel(node.category)}</span></td><td><span class="badge ${node.enabled && node.category ? '' : 'off'}">${node.enabled && node.category ? '已启用' : '不发布'}</span></td><td class="actions"><button class="secondary" data-edit="${node.id}">编辑</button><button class="ghost" data-delete="${node.id}">删除</button></td></tr>`,
       )
       .join('') || '<tr><td colspan="5" class="muted">暂无节点</td></tr>'
   document
@@ -95,6 +110,7 @@ function renderNodes() {
     }),
   )
 }
+
 function renderHistory(versions) {
   $('#history').innerHTML =
     versions
@@ -104,6 +120,7 @@ function renderHistory(versions) {
       )
       .join('') || '<p class="muted">还没有发布记录。</p>'
 }
+
 function escapeHtml(value) {
   return String(value).replace(
     /[&<>"']/g,
@@ -117,23 +134,81 @@ function escapeHtml(value) {
       })[character],
   )
 }
+
+function renderScanToolbar() {
+  $('#scan-toolbar').innerHTML =
+    '<span class="toolbar-label">批量选择：</span>' +
+    categories
+      .map(
+        ([key, label]) =>
+          `<button type="button" class="category-chip" data-bulk-category="${key}">${label}</button>`,
+      )
+      .join('') +
+    '<button type="button" class="category-chip neutral" data-bulk-category="">全部暂不归类</button>'
+  document.querySelectorAll('[data-bulk-category]').forEach((button) =>
+    button.addEventListener('click', () => {
+      const value = button.dataset.bulkCategory || null
+      state.scanNodes = state.scanNodes.map((node) => ({
+        ...node,
+        category: value,
+        enabled: Boolean(value),
+      }))
+      renderScanNodes()
+    }),
+  )
+}
+
+function renderScanNodes() {
+  $('#scan-count').textContent = `${state.scanNodes.length} 条已识别`
+  $('#scan-selection').textContent =
+    `已归类 ${state.scanNodes.filter((node) => node.category).length} 条 · 暂不归类 ${state.scanNodes.filter((node) => !node.category).length} 条`
+  $('#scan-list').innerHTML =
+    state.scanNodes
+      .map(
+        (node, index) =>
+          `<article class="scan-node"><div class="scan-node-title"><strong>${escapeHtml(node.displayName)}</strong><code>${escapeHtml(node.matchKey)}</code></div><div class="category-picker" role="group" aria-label="为 ${escapeHtml(node.displayName)} 选择分类">${categories
+            .map(
+              ([key, label]) =>
+                `<button type="button" class="category-chip ${node.category === key ? 'selected' : ''}" data-scan-index="${index}" data-scan-category="${key}">${label}</button>`,
+            )
+            .join(
+              '',
+            )}<button type="button" class="category-chip neutral ${!node.category ? 'selected' : ''}" data-scan-index="${index}" data-scan-category="">暂不归类</button></div></article>`,
+      )
+      .join('') || '<p class="muted empty-scan">没有可点选的节点。</p>'
+  document.querySelectorAll('[data-scan-index]').forEach((button) =>
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.scanIndex)
+      const category = button.dataset.scanCategory || null
+      state.scanNodes[index].category = category
+      state.scanNodes[index].enabled = Boolean(category)
+      renderScanNodes()
+    }),
+  )
+}
+
 async function loadNodes() {
   const payload = await api('nodes')
   state.nodes = payload.nodes
   renderNodes()
 }
+
 async function loadHistory() {
   const payload = await api('history')
   renderHistory(payload.versions)
 }
+
 async function loadManifest() {
   const payload = await api('manifest')
   $('#manifest-version').textContent =
     `v${payload.version}（${payload.nodes.length} 条）`
 }
+
 async function showApp() {
   $('#login-panel').hidden = true
   $('#app-panel').hidden = false
+  $('#source-url').value = state.sourceUrl
+  renderScanToolbar()
   await Promise.all([loadNodes(), loadHistory(), loadManifest()])
 }
 
@@ -155,6 +230,7 @@ $('#login-form').addEventListener('submit', async (event) => {
     $('#login-error').textContent = error.message
   }
 })
+
 $('#logout-button').addEventListener('click', async () => {
   try {
     await api('logout', { method: 'POST' })
@@ -162,6 +238,58 @@ $('#logout-button').addEventListener('click', async () => {
     window.location.reload()
   }
 })
+
+$('#source-form').addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const button = $('#scan-source')
+  const sourceUrl = $('#source-url').value.trim()
+  button.disabled = true
+  $('#source-status').textContent = '正在读取并识别节点，请稍候…'
+  try {
+    const payload = await api('scan-source', {
+      method: 'POST',
+      body: JSON.stringify({ url: sourceUrl }),
+    })
+    state.sourceUrl = sourceUrl
+    state.scanNodes = payload.nodes
+    localStorage.setItem('feiliu-route-source-url', sourceUrl)
+    $('#scan-panel').hidden = false
+    renderScanNodes()
+    $('#source-status').textContent =
+      payload.warning ||
+      `已读取 ${payload.nodes.length} 条节点，可以开始点选分类。`
+    showMessage('识别完成：请在上方为每条线路点选分类。')
+  } catch (error) {
+    $('#source-status').textContent = error.message
+    $('#scan-panel').hidden = true
+  } finally {
+    button.disabled = false
+  }
+})
+
+$('#import-scanned').addEventListener('click', async () => {
+  if (!state.scanNodes.length) return
+  const button = $('#import-scanned')
+  button.disabled = true
+  try {
+    const payload = await api('import-scanned', {
+      method: 'POST',
+      body: JSON.stringify({
+        sourceUrl: state.sourceUrl,
+        nodes: state.scanNodes,
+      }),
+    })
+    await Promise.all([loadNodes(), loadManifest()])
+    showMessage(
+      `已保存 ${payload.saved} 条节点；请点击“发布分类配置”后客户端才会获取。`,
+    )
+  } catch (error) {
+    showMessage(error.message, true)
+  } finally {
+    button.disabled = false
+  }
+})
+
 $('#clear-form').addEventListener('click', resetForm)
 $('#filter').addEventListener('input', (event) => {
   state.filter = event.target.value
@@ -181,6 +309,7 @@ $('#node-form').addEventListener('submit', async (event) => {
     showMessage(error.message, true)
   }
 })
+
 $('#bulk-import').addEventListener('click', async () => {
   const text = $('#bulk-text').value.trim()
   if (!text) return
@@ -196,6 +325,7 @@ $('#bulk-import').addEventListener('click', async () => {
     $('#bulk-result').textContent = error.message
   }
 })
+
 $('#publish').addEventListener('click', async () => {
   const button = $('#publish')
   button.disabled = true
