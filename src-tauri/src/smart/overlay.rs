@@ -102,7 +102,9 @@ fn configured_node_names(existing_nodes: &[String], settings: &SmartRouteConfig)
         .chain(settings.remote_node_categories.keys())
     {
         let normalized_name = normalize_node_key(name);
-        if !names.iter().any(|existing| normalize_node_key(existing) == normalized_name)
+        if !names
+            .iter()
+            .any(|existing| normalize_node_key(existing) == normalized_name)
             && !matches!(name.to_ascii_uppercase().as_str(), "DIRECT" | "REJECT")
         {
             names.push(name.clone());
