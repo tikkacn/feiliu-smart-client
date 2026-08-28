@@ -71,11 +71,7 @@ pub fn classification_map(manifest: &RemoteClassificationManifest) -> BTreeMap<S
 }
 
 pub fn normalize_node_key(value: &str) -> String {
-    value
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase()
+    value.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
 #[cfg(test)]
