@@ -60,7 +60,7 @@ if ($action === 'scan-source' && $method === 'POST') {
     route_manager_require_auth(true);
     $data = route_manager_input();
     $sourceUrl = trim((string) ($data['url'] ?? ''));
-    if ($sourceUrl === '') {
+    if ($sourceUrl === '' || in_array(rtrim($sourceUrl, '/'), ['https://guide.uutec.net'], true)) {
         $sourceUrl = route_manager_default_source_url();
     }
     if ($sourceUrl === '') {

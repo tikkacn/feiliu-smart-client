@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Feiliu 节点线路分类</title>
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/style.css?v=20260828-status-source">
 </head>
 <body>
   <main class="shell">
@@ -76,6 +76,6 @@
       <p id="app-message" class="message"></p>
     </section>
   </main>
-  <script src="assets/app.js"></script>
+  <script src="assets/app.js?v=20260828-status-source"></script>
 </body>
 </html>
