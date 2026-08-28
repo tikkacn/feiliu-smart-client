@@ -101,7 +101,8 @@ fn configured_node_names(existing_nodes: &[String], settings: &SmartRouteConfig)
         .keys()
         .chain(settings.remote_node_categories.keys())
     {
-        if !names.iter().any(|existing| existing == name)
+        let normalized_name = normalize_node_key(name);
+        if !names.iter().any(|existing| normalize_node_key(existing) == normalized_name)
             && !matches!(name.to_ascii_uppercase().as_str(), "DIRECT" | "REJECT")
         {
             names.push(name.clone());
@@ -119,12 +120,20 @@ fn categorized_nodes(nodes: &[String], settings: &SmartRouteConfig, operator: Ne
 }
 
 fn effective_category(settings: &SmartRouteConfig, name: &str) -> Option<super::model::LineCategory> {
+    let normalized_name = normalize_node_key(name);
     settings
         .node_categories
         .get(name)
         .copied()
+        .or_else(|| {
+            settings
+                .node_categories
+                .iter()
+                .find(|(key, _)| normalize_node_key(key) == normalized_name)
+                .map(|(_, category)| *category)
+        })
         .or_else(|| settings.remote_node_categories.get(name).copied())
-        .or_else(|| settings.remote_node_categories.get(&normalize_node_key(name)).copied())
+        .or_else(|| settings.remote_node_categories.get(&normalized_name).copied())
 }
 
 fn build_url_test_group(name: &str, nodes: Vec<String>) -> Mapping {
@@ -239,7 +248,11 @@ mod tests {
         .cloned()
         .expect("mapping");
 
-        assert_eq!(apply_smart_routes(&mut config, &SmartRouteConfig::default()), 1);
+        let settings = SmartRouteConfig {
+            use_builtin_rules: false,
+            ..SmartRouteConfig::default()
+        };
+        assert_eq!(apply_smart_routes(&mut config, &settings), 1);
         let groups = config["proxy-groups"].as_sequence().expect("groups");
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0]["name"], "全部节点");
