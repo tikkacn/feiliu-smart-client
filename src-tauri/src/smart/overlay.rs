@@ -46,7 +46,7 @@ pub fn apply_smart_routes(config: &mut Mapping, settings: &SmartRouteConfig) -> 
     ] {
         let nodes = categorized_nodes(&configured_node_names(&existing_nodes, settings), settings, operator);
         if !nodes.is_empty() {
-            groups.push(Value::Mapping(build_url_test_group(name, nodes)));
+            groups.push(Value::Mapping(build_url_test_group(name, nodes, provider_names.clone())));
             added += 1;
         }
     }
@@ -124,9 +124,17 @@ fn categorized_nodes(nodes: &[String], settings: &SmartRouteConfig, operator: Ne
 fn effective_category(settings: &SmartRouteConfig, name: &str) -> Option<super::model::LineCategory> {
     let normalized_name = normalize_node_key(name);
     settings
-        .node_categories
+        .remote_node_categories
         .get(name)
         .copied()
+        .or_else(|| {
+            settings.remote_node_categories
+                .iter()
+                .find(|(key, _)| normalize_node_key(key) == normalized_name)
+                .map(|(_, category)| *category)
+        })
+        .or_else(|| settings.remote_node_categories.get(&normalized_name).copied())
+        .or_else(|| settings.node_categories.get(name).copied())
         .or_else(|| {
             settings
                 .node_categories
@@ -134,12 +142,10 @@ fn effective_category(settings: &SmartRouteConfig, name: &str) -> Option<super::
                 .find(|(key, _)| normalize_node_key(key) == normalized_name)
                 .map(|(_, category)| *category)
         })
-        .or_else(|| settings.remote_node_categories.get(name).copied())
-        .or_else(|| settings.remote_node_categories.get(&normalized_name).copied())
 }
 
-fn build_url_test_group(name: &str, nodes: Vec<String>) -> Mapping {
-    let mut group = build_url_test_group_with_providers(name, Vec::new(), Vec::new());
+fn build_url_test_group(name: &str, nodes: Vec<String>, providers: Vec<String>) -> Mapping {
+    let mut group = build_url_test_group_with_providers(name, Vec::new(), providers);
     group.insert("include-all".into(), true.into());
     group.insert("filter".into(), node_filter(&nodes).into());
     group
@@ -315,5 +321,32 @@ mod tests {
             .find(|group| group["name"].as_str() == Some("电信优化"))
             .expect("telecom group");
         assert_eq!(telecom["filter"], "(?i)^(HK-01)$");
+    }
+
+    #[test]
+    fn published_categories_override_legacy_local_classifications() {
+        let mut config = serde_yaml_ng::from_str::<Value>(
+            "proxies:\n  - name: HK-01\n    type: vmess\nproxy-groups: []\nrules:\n  - MATCH,Proxy\n",
+        )
+        .expect("parse config")
+        .as_mapping()
+        .cloned()
+        .expect("mapping");
+        let settings = SmartRouteConfig {
+            node_categories: BTreeMap::from([(String::from("HK-01"), LineCategory::Mobile)]),
+            remote_node_categories: BTreeMap::from([(String::from("hk-01"), LineCategory::Telecom)]),
+            ..SmartRouteConfig::default()
+        };
+
+        apply_smart_routes(&mut config, &settings);
+        let groups = config["proxy-groups"].as_sequence().expect("groups");
+        let telecom = groups
+            .iter()
+            .find(|group| group["name"].as_str() == Some("电信优化"))
+            .expect("telecom group");
+        assert_eq!(telecom["filter"], "(?i)^(HK-01)$");
+        assert!(groups
+            .iter()
+            .all(|group| group["name"].as_str() != Some("移动优化")));
     }
 }
