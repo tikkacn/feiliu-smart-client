@@ -3,6 +3,7 @@ use serde_yaml_ng::{Mapping, Value};
 use super::{
     current_network,
     model::{NetworkOperator, SmartRouteConfig},
+    remote::normalize_node_key,
 };
 
 const TELECOM_GROUP_NAME: &str = "电信优化";
@@ -109,13 +110,20 @@ fn categorized_nodes(nodes: &[String], settings: &SmartRouteConfig, operator: Ne
     nodes
         .iter()
         .filter(|name| {
-            settings
-                .node_categories
-                .get(*name)
+            effective_category(settings, name)
                 .is_some_and(|category| category.includes(operator))
         })
         .cloned()
         .collect()
+}
+
+fn effective_category(settings: &SmartRouteConfig, name: &str) -> Option<super::model::LineCategory> {
+    settings
+        .node_categories
+        .get(name)
+        .copied()
+        .or_else(|| settings.remote_node_categories.get(name).copied())
+        .or_else(|| settings.remote_node_categories.get(&normalize_node_key(name)).copied())
 }
 
 fn build_url_test_group(name: &str, nodes: Vec<String>) -> Mapping {
@@ -176,10 +184,7 @@ fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping) -> &'st
     let has_matching_node = configured_node_names(&existing_proxy_names(config), settings)
         .iter()
         .any(|name| {
-            settings
-                .node_categories
-                .get(name)
-                .is_some_and(|category| category.includes(detected))
+            effective_category(settings, name).is_some_and(|category| category.includes(detected))
         });
     if has_matching_node {
         detected_group
@@ -270,5 +275,28 @@ mod tests {
         assert_eq!(group("联通优化")["filter"], "^(both|all)$");
         assert_eq!(group("移动优化")["filter"], "^(all)$");
         assert!(groups.iter().all(|group| group["name"].as_str() != Some("三网优化")));
+    }
+
+    #[test]
+    fn remote_categories_are_used_when_no_local_override_exists() {
+        let mut config = serde_yaml_ng::from_str::<Value>(
+            "proxies:\n  - name: HK-01\n    type: vmess\nproxy-groups: []\nrules:\n  - MATCH,Proxy\n",
+        )
+        .expect("parse config")
+        .as_mapping()
+        .cloned()
+        .expect("mapping");
+        let settings = SmartRouteConfig {
+            remote_node_categories: BTreeMap::from([(String::from("hk-01"), LineCategory::Telecom)]),
+            ..SmartRouteConfig::default()
+        };
+
+        apply_smart_routes(&mut config, &settings);
+        let groups = config["proxy-groups"].as_sequence().expect("groups");
+        let telecom = groups
+            .iter()
+            .find(|group| group["name"].as_str() == Some("电信优化"))
+            .expect("telecom group");
+        assert_eq!(telecom["filter"], "^(HK-01)$");
     }
 }

@@ -156,9 +156,22 @@
     "smartRoute": {
       "title": "Line Optimization",
       "description": "Assign each line to one operator combination. The Telecom, Unicom, and Mobile runtime groups use every line that contains the corresponding operator and continuously test latency. Unclassified lines remain available in all nodes and individual node selection.",
+      "network": {
+        "title": "Confirm line optimization operator",
+        "changed": "Network operator changed",
+        "detectedHint": "We detected that you are accessing through {{operator}}. Choose the operator lines to prioritize.",
+        "unknownHint": "Your operator could not be identified. Choose 1 Telecom, 2 Unicom, 3 Mobile, or 4 Other.",
+        "telecom": "Telecom",
+        "unicom": "Unicom",
+        "mobile": "Mobile",
+        "other": "Other",
+        "later": "Not now",
+        "confirm": "Confirm and apply"
+      },
       "summary": "{{classified}} of {{total}} lines classified",
       "actions": {
-        "save": "Save line classifications"
+        "save": "Save line classifications",
+        "sync": "Sync website classifications"
       },
       "fields": {
         "node": "Node",
@@ -167,7 +180,9 @@
       },
       "sources": {
         "subscription": "Current subscription",
-        "provider": "Proxy provider"
+        "provider": "Proxy provider",
+        "website": "Website classification",
+        "manual": "Manual override"
       },
       "status": {
         "ready": "Classification complete",

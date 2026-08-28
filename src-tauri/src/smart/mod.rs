@@ -1,5 +1,6 @@
 pub mod model;
 pub mod overlay;
+pub mod remote;
 pub mod rules;
 
 use std::sync::OnceLock;

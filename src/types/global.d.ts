@@ -879,6 +879,9 @@ interface CustomRuleSet {
 
 interface SmartRouteConfig {
   nodeCategories?: Record<string, SmartLineCategory>
+  remoteNodeCategories?: Record<string, SmartLineCategory>
+  remoteManifestVersion?: number
+  remoteManifestUpdatedAt?: string
   useBuiltinRules?: boolean
   customRules?: CustomRuleSet[]
 }

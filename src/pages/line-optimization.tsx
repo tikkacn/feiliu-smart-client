@@ -2,6 +2,7 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded'
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
   Alert,
@@ -27,13 +28,13 @@ import {
 import { open } from '@tauri-apps/plugin-dialog'
 import { useLockFn } from 'ahooks'
 import { nanoid } from 'nanoid'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BasePage } from '@/components/base'
 import { useVerge } from '@/hooks/use-verge'
 import { useProxiesData } from '@/providers/app-data-context'
-import { importRuleFile } from '@/services/cmds'
+import { importRuleFile, syncSmartClassifications } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import {
   SMART_LINE_CATEGORIES,
@@ -49,6 +50,9 @@ const CATEGORY_LABEL_KEYS: Record<SmartLineCategory, string> = {
   'unicom-mobile': 'settings.sections.smartRoute.categories.unicomMobile',
   'three-network': 'settings.sections.smartRoute.categories.threeNetwork',
 }
+
+const normalizeNodeName = (value: string) =>
+  value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
 
 const RULE_TARGETS = [
   'auto',
@@ -93,8 +97,12 @@ const RULE_FORMAT_LABEL_KEYS: Record<RuleFormat, string> = {
 const LineOptimizationPage = () => {
   const { t } = useTranslation()
   const { proxyView } = useProxiesData()
-  const { verge, patchVerge } = useVerge()
+  const { verge, mutateVerge, patchVerge } = useVerge()
   const [draft, setDraft] = useState<Record<string, SmartLineCategory>>({})
+  const [remoteNodeCategories, setRemoteNodeCategories] = useState<
+    Record<string, SmartLineCategory>
+  >({})
+  const [syncing, setSyncing] = useState(false)
   const [useBuiltinRules, setUseBuiltinRules] = useState(true)
   const [customRules, setCustomRules] = useState<CustomRuleSet[]>([])
   const [newRuleName, setNewRuleName] = useState('')
@@ -120,6 +128,7 @@ const LineOptimizationPage = () => {
     const smartRoute = verge?.smart_route
     const categories = smartRoute?.nodeCategories ?? {}
     setDraft({ ...categories })
+    setRemoteNodeCategories({ ...(smartRoute?.remoteNodeCategories ?? {}) })
     setUseBuiltinRules(smartRoute?.useBuiltinRules ?? true)
     setCustomRules(
       (smartRoute?.customRules ?? []).map((rule) => ({
@@ -132,10 +141,36 @@ const LineOptimizationPage = () => {
     setDirty(false)
   }, [verge?.smart_route])
 
-  const classifiedCount = useMemo(
-    () => nodes.filter((node) => draft[node.name]).length,
-    [draft, nodes],
+  const remoteCategoryFor = useCallback(
+    (name: string) =>
+      remoteNodeCategories[name] ??
+      remoteNodeCategories[normalizeNodeName(name)],
+    [remoteNodeCategories],
   )
+
+  const effectiveCategoryFor = useCallback(
+    (name: string) => draft[name] ?? remoteCategoryFor(name),
+    [draft, remoteCategoryFor],
+  )
+
+  const classifiedCount = useMemo(
+    () => nodes.filter((node) => effectiveCategoryFor(node.name)).length,
+    [effectiveCategoryFor, nodes],
+  )
+
+  const onSync = useLockFn(async () => {
+    setSyncing(true)
+    try {
+      const result = await syncSmartClassifications()
+      await mutateVerge()
+      showNotice.success('settings.sections.smartRoute.messages.saved')
+      console.debug('[smart-route] classification manifest synced', result)
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setSyncing(false)
+    }
+  })
 
   const onSave = useLockFn(async () => {
     const knownNodes = new Set(nodes.map((node) => node.name))
@@ -152,6 +187,9 @@ const LineOptimizationPage = () => {
       await patchVerge({
         smart_route: {
           nodeCategories,
+          remoteNodeCategories,
+          remoteManifestVersion: verge?.smart_route?.remoteManifestVersion,
+          remoteManifestUpdatedAt: verge?.smart_route?.remoteManifestUpdatedAt,
           useBuiltinRules,
           customRules,
         },
@@ -232,15 +270,28 @@ const LineOptimizationPage = () => {
     <BasePage
       title={t('settings.sections.smartRoute.title')}
       header={
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<SaveRoundedIcon />}
-          disabled={!dirty}
-          onClick={onSave}
-        >
-          {t('settings.sections.smartRoute.actions.save')}
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RefreshRoundedIcon />}
+            disabled={syncing}
+            onClick={onSync}
+          >
+            {t('settings.sections.smartRoute.actions.sync', {
+              defaultValue: '同步网站分类',
+            })}
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<SaveRoundedIcon />}
+            disabled={!dirty}
+            onClick={onSave}
+          >
+            {t('settings.sections.smartRoute.actions.save')}
+          </Button>
+        </Stack>
       }
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -502,18 +553,29 @@ const LineOptimizationPage = () => {
               </TableHead>
               <TableBody>
                 {nodes.map((node) => {
-                  const category = draft[node.name] ?? ''
+                  const category = effectiveCategoryFor(node.name) ?? ''
+                  const isManual = Boolean(draft[node.name])
+                  const hasRemote = Boolean(remoteCategoryFor(node.name))
                   return (
                     <TableRow key={`${node.source.kind}:${node.name}`} hover>
                       <TableCell sx={{ maxWidth: 360, wordBreak: 'break-all' }}>
                         {node.name}
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary' }}>
-                        {node.source.kind === 'provider'
-                          ? `${t('settings.sections.smartRoute.sources.provider')} · ${node.source.providerName}`
-                          : t(
-                              'settings.sections.smartRoute.sources.subscription',
-                            )}
+                        {isManual
+                          ? t('settings.sections.smartRoute.sources.manual', {
+                              defaultValue: '手动覆盖',
+                            })
+                          : hasRemote
+                            ? t(
+                                'settings.sections.smartRoute.sources.website',
+                                { defaultValue: '网站分类' },
+                              )
+                            : node.source.kind === 'provider'
+                              ? `${t('settings.sections.smartRoute.sources.provider')} · ${node.source.providerName}`
+                              : t(
+                                  'settings.sections.smartRoute.sources.subscription',
+                                )}
                       </TableCell>
                       <TableCell align="right">
                         <Select
@@ -526,7 +588,11 @@ const LineOptimizationPage = () => {
                               | ''
                             setDraft((current) => {
                               const next = { ...current }
-                              if (value) next[node.name] = value
+                              const remoteCategory = remoteCategoryFor(
+                                node.name,
+                              )
+                              if (value && value !== remoteCategory)
+                                next[node.name] = value
                               else delete next[node.name]
                               return next
                             })

@@ -1,4 +1,17 @@
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  Typography,
+} from '@mui/material'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   getBaseConfig,
   getRuleProviders,
@@ -15,10 +28,12 @@ import {
   getRuntimeState,
   getSystemProxy,
   setSmartNetwork,
+  syncSmartClassifications,
 } from '@/services/cmds'
 import { subscribeVergeEvents } from '@/services/events'
+import { showNotice } from '@/services/notice-service'
 import { revalidateQueries, useQuery } from '@/services/query-client'
-import { classifySmartOperator } from '@/types/smart-route'
+import { classifySmartOperator, type SmartOperator } from '@/types/smart-route'
 import { resolveDisplayedMixedPort } from '@/utils/mixed-port'
 
 import {
@@ -46,6 +61,19 @@ const TQ_DEFAULTS = {
   retry: 2,
 } as const
 
+const SMART_OPERATOR_LABEL_KEYS: Record<SmartOperator, string> = {
+  telecom: 'settings.sections.smartRoute.network.telecom',
+  unicom: 'settings.sections.smartRoute.network.unicom',
+  mobile: 'settings.sections.smartRoute.network.mobile',
+  unknown: 'settings.sections.smartRoute.network.other',
+}
+
+interface SmartNetworkPrompt {
+  detectedOperator: SmartOperator
+  detectedConfidence: number
+  changed: boolean
+}
+
 function useStableFn<T extends (...args: any[]) => any>(fn: T): T {
   const ref = useRef(fn)
   ref.current = fn
@@ -58,6 +86,7 @@ export const AppDataProvider = ({
 }: {
   children: React.ReactNode
 }) => {
+  const { t } = useTranslation()
   const { verge } = useVerge()
   const { data: runtimeConfig } = useRuntimeConfig()
   const { clashInfo } = useClashInfo()
@@ -112,18 +141,74 @@ export const AppDataProvider = ({
   })
   const runningMode = runState?.mode
 
+  const proxyNodeSignature = useMemo(
+    () =>
+      Object.values(proxyView?.records ?? {})
+        .filter(
+          (node) =>
+            !['direct', 'reject'].includes(node.type.toLowerCase()) &&
+            !['DIRECT', 'REJECT'].includes(node.name.toUpperCase()),
+        )
+        .map((node) =>
+          node.source.kind === 'provider'
+            ? `provider:${node.source.providerName}:${node.name}`
+            : `subscription:${node.name}`,
+        )
+        .sort()
+        .join('\u0000'),
+    [proxyView?.records],
+  )
+  const remoteSyncSignatureRef = useRef<string | null>(null)
+  const detectedOperatorRef = useRef<SmartOperator | null>(null)
+  const [smartNetworkPrompt, setSmartNetworkPrompt] =
+    React.useState<SmartNetworkPrompt | null>(null)
+  const [selectedSmartOperator, setSelectedSmartOperator] =
+    React.useState<SmartOperator>('unknown')
+  const [applyingSmartNetwork, setApplyingSmartNetwork] = React.useState(false)
+
   useEffect(() => {
+    if (
+      !verge ||
+      !proxyNodeSignature ||
+      remoteSyncSignatureRef.current === proxyNodeSignature
+    ) {
+      return
+    }
+
+    remoteSyncSignatureRef.current = proxyNodeSignature
+    void syncSmartClassifications().catch((error) => {
+      // The last successful manifest remains in the local config. A manual
+      // retry is available on the line optimization page when the service is
+      // temporarily unavailable.
+      console.debug('[smart-route] remote classification unavailable', error)
+    })
+  }, [proxyNodeSignature, verge])
+
+  useEffect(() => {
+    if (!proxyNodeSignature) return
     let disposed = false
 
     const refreshSmartNetwork = async () => {
       try {
         const ipInfo = await getIpInfo()
         if (disposed) return
-        const network = classifySmartOperator({
-          asn: ipInfo.asn,
-          isp: ipInfo.asn_organization || ipInfo.organization,
+        const isDomestic = ipInfo.country_code.trim().toUpperCase() === 'CN'
+        const network = isDomestic
+          ? classifySmartOperator({
+              asn: ipInfo.asn,
+              isp: ipInfo.asn_organization || ipInfo.organization,
+            })
+          : { operator: 'unknown' as const, confidence: 0.15 }
+        if (detectedOperatorRef.current === network.operator) return
+
+        const changed = detectedOperatorRef.current !== null
+        detectedOperatorRef.current = network.operator
+        setSelectedSmartOperator(network.operator)
+        setSmartNetworkPrompt({
+          detectedOperator: network.operator,
+          detectedConfidence: network.confidence,
+          changed,
         })
-        await setSmartNetwork(network.operator, network.confidence)
       } catch (error) {
         // Automatic selection still works through Mihomo's local url-test group
         // when the optional operator lookup is unavailable.
@@ -137,7 +222,29 @@ export const AppDataProvider = ({
       disposed = true
       window.clearInterval(timer)
     }
-  }, [])
+  }, [proxyNodeSignature])
+
+  const smartOperatorLabel = (operator: SmartOperator) =>
+    t(SMART_OPERATOR_LABEL_KEYS[operator])
+
+  const applySmartNetwork = async () => {
+    if (!smartNetworkPrompt) return
+    setApplyingSmartNetwork(true)
+    try {
+      const confidence =
+        selectedSmartOperator === smartNetworkPrompt.detectedOperator
+          ? smartNetworkPrompt.detectedConfidence
+          : selectedSmartOperator === 'unknown'
+            ? 0.15
+            : 1
+      await setSmartNetwork(selectedSmartOperator, confidence)
+      setSmartNetworkPrompt(null)
+    } catch (error) {
+      showNotice.error(error)
+    } finally {
+      setApplyingSmartNetwork(false)
+    }
+  }
 
   const { data: uptimeData } = useQuery({
     queryKey: ['appUptime'],
@@ -303,20 +410,80 @@ export const AppDataProvider = ({
   )
 
   return (
-    <ProxiesContext value={proxiesValue}>
-      <RulesContext value={rulesValue}>
-        <ClashConfigContext value={clashConfigValue}>
-          <SystemContext value={systemValue}>
-            <UptimeContext value={uptimeValue}>
-              <CoreDataStatusContext value={coreDataStatusValue}>
-                <RefreshersContext value={refreshersValue}>
-                  {children}
-                </RefreshersContext>
-              </CoreDataStatusContext>
-            </UptimeContext>
-          </SystemContext>
-        </ClashConfigContext>
-      </RulesContext>
-    </ProxiesContext>
+    <>
+      <ProxiesContext value={proxiesValue}>
+        <RulesContext value={rulesValue}>
+          <ClashConfigContext value={clashConfigValue}>
+            <SystemContext value={systemValue}>
+              <UptimeContext value={uptimeValue}>
+                <CoreDataStatusContext value={coreDataStatusValue}>
+                  <RefreshersContext value={refreshersValue}>
+                    {children}
+                  </RefreshersContext>
+                </CoreDataStatusContext>
+              </UptimeContext>
+            </SystemContext>
+          </ClashConfigContext>
+        </RulesContext>
+      </ProxiesContext>
+
+      <Dialog
+        open={smartNetworkPrompt !== null}
+        onClose={() => setSmartNetworkPrompt(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          {smartNetworkPrompt?.changed
+            ? t('settings.sections.smartRoute.network.changed')
+            : t('settings.sections.smartRoute.network.title')}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {smartNetworkPrompt?.detectedOperator === 'unknown'
+              ? t('settings.sections.smartRoute.network.unknownHint')
+              : t('settings.sections.smartRoute.network.detectedHint', {
+                  operator: smartNetworkPrompt
+                    ? smartOperatorLabel(smartNetworkPrompt.detectedOperator)
+                    : '',
+                })}
+          </Typography>
+          <FormControl>
+            <RadioGroup
+              value={selectedSmartOperator}
+              onChange={(event) =>
+                setSelectedSmartOperator(event.target.value as SmartOperator)
+              }
+            >
+              {(['telecom', 'unicom', 'mobile', 'unknown'] as const).map(
+                (operator) => (
+                  <FormControlLabel
+                    key={operator}
+                    value={operator}
+                    control={<Radio />}
+                    label={`${operator === 'unknown' ? '4' : operator === 'telecom' ? '1' : operator === 'unicom' ? '2' : '3'} · ${smartOperatorLabel(operator)}`}
+                  />
+                ),
+              )}
+            </RadioGroup>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setSmartNetworkPrompt(null)}
+            disabled={applyingSmartNetwork}
+          >
+            {t('settings.sections.smartRoute.network.later')}
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void applySmartNetwork()}
+            disabled={applyingSmartNetwork}
+          >
+            {t('settings.sections.smartRoute.network.confirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   )
 }

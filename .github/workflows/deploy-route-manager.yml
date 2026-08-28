@@ -1,0 +1,63 @@
+name: Deploy Route Manager
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'route-manager/**'
+      - '.github/workflows/deploy-route-manager.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: route-manager-production
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sqlite3, pdo_sqlite
+      - name: Validate PHP sources
+        run: |
+          find route-manager -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Validate public manifest shape
+        run: |
+          test -f route-manager/public/manifest.php
+          test -f route-manager/public/api.php
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - name: Load deployment key
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+      - name: Deploy files to aaPanel site directory
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SITE_ROOT: ${{ secrets.VPS_SITE_ROOT }}
+          ROUTE_MANAGER_ADMIN_PASSWORD: ${{ secrets.ROUTE_MANAGER_ADMIN_PASSWORD }}
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_SITE_ROOT'"
+          rsync -az --delete \
+            --exclude 'config/config.php' \
+            --exclude 'storage/' \
+            route-manager/ "$VPS_USER@$VPS_HOST:$VPS_SITE_ROOT/"
+          if ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_HOST" "test -f '$VPS_SITE_ROOT/config/config.php'"; then
+            ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_HOST" "cd '$VPS_SITE_ROOT' && php scripts/migrate.php"
+          else
+            test -n "$ROUTE_MANAGER_ADMIN_PASSWORD"
+            printf '%s\n' "$ROUTE_MANAGER_ADMIN_PASSWORD" | ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_HOST" "cd '$VPS_SITE_ROOT' && php scripts/install.php"
+          fi

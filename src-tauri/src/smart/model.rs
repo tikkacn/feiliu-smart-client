@@ -135,6 +135,16 @@ fn default_enabled() -> bool {
 pub struct SmartRouteConfig {
     #[serde(default)]
     pub node_categories: BTreeMap<String, LineCategory>,
+    /// Categories published by the Feiliu line-classification service.
+    ///
+    /// These are defaults only. `node_categories` contains the user's local
+    /// overrides and always wins when both maps contain the same node.
+    #[serde(default)]
+    pub remote_node_categories: BTreeMap<String, LineCategory>,
+    #[serde(default)]
+    pub remote_manifest_version: Option<u64>,
+    #[serde(default)]
+    pub remote_manifest_updated_at: Option<String>,
     #[serde(default = "default_builtin_rules")]
     pub use_builtin_rules: bool,
     #[serde(default)]
@@ -145,10 +155,38 @@ impl Default for SmartRouteConfig {
     fn default() -> Self {
         Self {
             node_categories: BTreeMap::new(),
+            remote_node_categories: BTreeMap::new(),
+            remote_manifest_version: None,
+            remote_manifest_updated_at: None,
             use_builtin_rules: true,
             custom_rules: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteClassificationEntry {
+    pub match_key: String,
+    pub category: LineCategory,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteClassificationManifest {
+    pub schema_version: u32,
+    pub version: u64,
+    pub updated_at: String,
+    pub nodes: Vec<RemoteClassificationEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SmartClassificationSyncResult {
+    pub version: u64,
+    pub updated_at: String,
+    pub categories: usize,
+    pub fetched_at: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]

@@ -4,7 +4,10 @@ import dayjs from 'dayjs'
 import type { CommandFailure } from '@/services/notice-service'
 import { showNotice } from '@/services/notice-service'
 import type { ProxyViewV1 } from '@/types/proxy-view'
-import type { SmartOperator } from '@/types/smart-route'
+import type {
+  SmartClassificationSyncResult,
+  SmartOperator,
+} from '@/types/smart-route'
 import { debugLog } from '@/utils/debug'
 
 export async function copyClashEnv() {
@@ -26,6 +29,10 @@ export function setSmartNetwork(operator: SmartOperator, confidence: number) {
     operator,
     confidence,
   })
+}
+
+export function syncSmartClassifications() {
+  return invoke<SmartClassificationSyncResult>('sync_smart_classifications')
 }
 
 export async function patchProfilesConfig(profiles: IProfilesConfig) {

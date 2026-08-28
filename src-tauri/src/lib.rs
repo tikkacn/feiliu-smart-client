@@ -214,6 +214,7 @@ mod app_init {
             cmd::check_media_unlock,
             cmd::check_media_unlock_item,
             cmd::set_smart_network,
+            cmd::sync_smart_classifications,
         ]
     }
 }

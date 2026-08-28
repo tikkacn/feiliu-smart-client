@@ -1341,6 +1341,7 @@ export interface TranslationResources {
         smartRoute: {
           actions: {
             save: string
+            sync: string
           }
           categories: {
             mobile: string
@@ -1363,6 +1364,18 @@ export interface TranslationResources {
             noNodes: string
             ruleNameRequired: string
             saved: string
+          }
+          network: {
+            changed: string
+            confirm: string
+            detectedHint: string
+            later: string
+            mobile: string
+            other: string
+            telecom: string
+            title: string
+            unicom: string
+            unknownHint: string
           }
           rules: {
             addFile: string
@@ -1392,8 +1405,10 @@ export interface TranslationResources {
             url: string
           }
           sources: {
+            manual: string
             provider: string
             subscription: string
+            website: string
           }
           status: {
             pending: string

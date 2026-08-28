@@ -19,6 +19,13 @@ export const SMART_LINE_CATEGORIES: readonly SmartLineCategory[] = [
   'three-network',
 ]
 
+export interface SmartClassificationSyncResult {
+  version: number
+  updatedAt: string
+  categories: number
+  fetchedAt: number
+}
+
 const ASN_OPERATOR_RULES: Record<number, SmartOperator> = {
   4134: 'telecom',
   4837: 'unicom',

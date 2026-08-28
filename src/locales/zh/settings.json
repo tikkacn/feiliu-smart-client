@@ -156,9 +156,22 @@
     "smartRoute": {
       "title": "线路优化",
       "description": "每条线路请选择一个运营商组合。运行时的电信优化、联通优化、移动优化会分别使用包含对应运营商的线路，并持续测速选择更快的线路。未分类线路仍可在全部节点和单节点选择中使用。",
+      "network": {
+        "title": "确认线路优化运营商",
+        "changed": "检测到运营商网络已切换",
+        "detectedHint": "检测到您正在使用{{operator}}网络访问。请选择要优先使用的运营商线路。",
+        "unknownHint": "未正确识别您的运营商，请输入运营商编号：1 电信、2 联通、3 移动、4 其他。",
+        "telecom": "电信",
+        "unicom": "联通",
+        "mobile": "移动",
+        "other": "其他",
+        "later": "暂不调整",
+        "confirm": "确认并应用"
+      },
       "summary": "共 {{total}} 条线路，已分类 {{classified}} 条",
       "actions": {
-        "save": "保存线路分类"
+        "save": "保存线路分类",
+        "sync": "同步网站分类"
       },
       "fields": {
         "node": "节点",
@@ -167,7 +180,9 @@
       },
       "sources": {
         "subscription": "当前订阅",
-        "provider": "节点提供者"
+        "provider": "节点提供者",
+        "website": "网站分类",
+        "manual": "手动覆盖"
       },
       "status": {
         "ready": "已完成分类",
