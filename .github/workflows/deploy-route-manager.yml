@@ -55,6 +55,8 @@ jobs:
           rsync -az --delete \
             --exclude 'config/config.php' \
             --exclude 'storage/' \
+            --exclude '.user.ini' \
+            --exclude 'public/.user.ini' \
             route-manager/ "$VPS_USER@$VPS_HOST:$VPS_SITE_ROOT/"
           if ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_HOST" "test -f '$VPS_SITE_ROOT/config/config.php'"; then
             ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_HOST" "cd '$VPS_SITE_ROOT' && php scripts/migrate.php"
