@@ -1,8 +1,5 @@
-use std::{future::Future, pin::Pin};
-
 use crate::{
     cmd::{CmdResult, coded_error},
-    config::Config,
     feat,
     smart::{
         self,
@@ -19,8 +16,6 @@ pub async fn set_smart_network(
     let Some(operator) = NetworkOperator::parse(&operator) else {
         return Err(coded_error("SMART_ROUTE_INVALID_OPERATOR", "无法识别当前网络运营商"));
     };
-
-    ensure_remote_classifications().await;
 
     let previous_network = smart::update_network(operator, confidence);
     let preference_changed = match Box::pin(smart::persist_preferred_operator(operator)).await {
@@ -39,31 +34,6 @@ pub async fn set_smart_network(
     }
 
     apply_smart_network(previous_network).await
-}
-
-/// Makes sure the first operator selection cannot race the initial catalog
-/// download. Failure is non-fatal because the last successful catalog, or the
-/// all-nodes fallback, is still usable.
-fn ensure_remote_classifications() -> Pin<Box<dyn Future<Output = ()> + Send>> {
-    Box::pin(async {
-        let has_remote_classifications = Config::verge()
-            .await
-            .latest_arc()
-            .smart_route
-            .as_ref()
-            .is_some_and(|settings| !settings.remote_node_categories.is_empty());
-        if has_remote_classifications {
-            return;
-        }
-
-        if let Err(error) = Box::pin(smart::refresh_remote_classifications()).await {
-            logging!(
-                warn,
-                Type::Config,
-                "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
-            );
-        }
-    })
 }
 
 async fn apply_smart_network(

@@ -17,9 +17,14 @@ use crate::{
 use self::model::{NetworkOperator, SmartClassificationSyncResult, SmartNetworkState};
 
 static NETWORK_STATE: OnceLock<RwLock<SmartNetworkState>> = OnceLock::new();
+static SMART_ROUTE_WRITE: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 fn network_store() -> &'static RwLock<SmartNetworkState> {
     NETWORK_STATE.get_or_init(|| RwLock::new(SmartNetworkState::default()))
+}
+
+fn smart_route_write() -> &'static tokio::sync::Mutex<()> {
+    SMART_ROUTE_WRITE.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
 /// Updates the local network hint and returns the previous state when a
@@ -68,6 +73,10 @@ pub async fn refresh_remote_classifications() -> Result<SmartClassificationSyncR
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
 
+    // Classification refresh and operator confirmation can finish at nearly
+    // the same time during startup. Serialize their read-modify-write cycles
+    // so neither operation can restore an older empty SmartRouteConfig.
+    let _write_guard = smart_route_write().lock().await;
     let mut smart_route = Config::verge()
         .await
         .latest_arc()
@@ -114,6 +123,7 @@ pub async fn refresh_remote_classifications_and_apply() -> Result<SmartClassific
 /// Persists the user-selected operator without changing the live detector
 /// state. Returns whether the saved configuration actually changed.
 pub async fn persist_preferred_operator(operator: NetworkOperator) -> Result<bool> {
+    let _write_guard = smart_route_write().lock().await;
     let mut smart_route = Config::verge()
         .await
         .latest_arc()

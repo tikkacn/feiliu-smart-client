@@ -1,24 +1,29 @@
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use anyhow::{Context as _, Result, bail};
+
+use crate::utils::network::{NetworkManager, ProxyType};
 
 use super::model::{LineCategory, RemoteClassificationManifest};
 
 pub const CLASSIFICATION_MANIFEST_URL: &str = "https://jiedian.328671.xyz/manifest.php";
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
+const MANIFEST_TIMEOUT_SECONDS: u64 = 8;
 
 pub async fn fetch_manifest() -> Result<RemoteClassificationManifest> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .user_agent("Feiliu-Smart-Client/line-classification")
-        .build()
-        .context("failed to create classification client")?;
-
-    let response = client
-        .get(CLASSIFICATION_MANIFEST_URL)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .send()
+    // Do not inherit an ambient/system proxy here. The operator prompt can be
+    // shown before Mihomo is ready, and routing this request through a stale
+    // localhost proxy made the dialog wait for the full timeout. The shared
+    // network helper explicitly applies `no_proxy()` for `ProxyType::None`
+    // and retains the application's platform TLS fallback.
+    let response = NetworkManager::new()
+        .get_with_interrupt(
+            CLASSIFICATION_MANIFEST_URL,
+            ProxyType::None,
+            Some(MANIFEST_TIMEOUT_SECONDS),
+            Some("Feiliu-Smart-Client/line-classification".into()),
+            false,
+        )
         .await
         .context("failed to request line classification service")?;
 
@@ -27,10 +32,12 @@ pub async fn fetch_manifest() -> Result<RemoteClassificationManifest> {
         bail!("line classification service returned HTTP {status}");
     }
 
-    let manifest = response
-        .json::<RemoteClassificationManifest>()
-        .await
-        .context("invalid line classification response")?;
+    let manifest = serde_json::from_str::<RemoteClassificationManifest>(
+        response
+            .text_with_charset()
+            .context("failed to read line classification response")?,
+    )
+    .context("invalid line classification response")?;
     validate_manifest(&manifest)?;
     Ok(manifest)
 }

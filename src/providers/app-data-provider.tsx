@@ -175,6 +175,16 @@ export const AppDataProvider = ({
     }
 
     let disposed = false
+    let retryTimer: number | null = null
+    let retryDelay = 30_000
+    const scheduleRetry = () => {
+      if (disposed || retryTimer !== null) return
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null
+        void sync()
+      }, retryDelay)
+      retryDelay = Math.min(retryDelay * 2, 5 * 60 * 1000)
+    }
     const sync = async (force = false) => {
       if (
         disposed ||
@@ -186,11 +196,13 @@ export const AppDataProvider = ({
       remoteSyncSignatureRef.current = proxyNodeSignature
       try {
         await syncSmartClassifications()
+        retryDelay = 30_000
       } catch (error) {
         remoteSyncSignatureRef.current = null
         // The last successful manifest remains in the local config. A later
-        // periodic refresh or subscription change will retry the sync.
+        // retry, periodic refresh, or subscription change will sync again.
         console.debug('[smart-route] remote classification unavailable', error)
+        scheduleRetry()
       }
     }
 
@@ -201,6 +213,7 @@ export const AppDataProvider = ({
 
     return () => {
       disposed = true
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
       window.clearInterval(timer)
     }
   }, [hasVerge, proxyNodeSignature])
@@ -250,16 +263,21 @@ export const AppDataProvider = ({
 
   const applySmartNetwork = async () => {
     if (!smartNetworkPrompt) return
+    const prompt = smartNetworkPrompt
+    // Operator persistence and runtime regeneration continue asynchronously,
+    // but confirming the choice should dismiss the modal immediately. Remote
+    // classification refresh is already managed independently by the sync
+    // effect above and must never block this interaction.
+    setSmartNetworkPrompt(null)
     setApplyingSmartNetwork(true)
     try {
       const confidence =
-        selectedSmartOperator === smartNetworkPrompt.detectedOperator
-          ? smartNetworkPrompt.detectedConfidence
+        selectedSmartOperator === prompt.detectedOperator
+          ? prompt.detectedConfidence
           : selectedSmartOperator === 'unknown'
             ? 0.15
             : 1
       await setSmartNetwork(selectedSmartOperator, confidence)
-      setSmartNetworkPrompt(null)
     } catch (error) {
       showNotice.error(error)
     } finally {

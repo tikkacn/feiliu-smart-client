@@ -274,7 +274,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::apply_smart_routes;
-    use crate::smart::model::{LineCategory, SmartRouteConfig};
+    use crate::smart::{
+        model::{LineCategory, NetworkOperator, SmartNetworkState, SmartRouteConfig},
+        restore_network,
+    };
     use serde_yaml_ng::Value;
 
     #[test]
@@ -352,6 +355,35 @@ mod tests {
             .find(|group| group["name"].as_str() == Some("电信优化"))
             .expect("telecom group");
         assert_eq!(telecom["filter"], "(?i)^(HK-01)$");
+    }
+
+    #[test]
+    fn persisted_operator_is_the_default_after_runtime_regeneration() {
+        restore_network(SmartNetworkState::default());
+        let mut config = serde_yaml_ng::from_str::<Value>(
+            "proxies:\n  - name: telecom-node\n    type: vmess\n  - name: unclassified\n    type: vmess\nproxy-groups: []\nrules:\n  - MATCH,Proxy\n",
+        )
+        .expect("parse config")
+        .as_mapping()
+        .cloned()
+        .expect("mapping");
+        let settings = SmartRouteConfig {
+            remote_node_categories: BTreeMap::from([(String::from("telecom-node"), LineCategory::Telecom)]),
+            preferred_operator: NetworkOperator::Telecom,
+            ..SmartRouteConfig::default()
+        };
+
+        apply_smart_routes(&mut config, &settings);
+
+        let rules = config["rules"].as_sequence().expect("rules");
+        assert!(rules.iter().any(|rule| rule.as_str() == Some("MATCH,电信优化")));
+        let netflix = config["proxy-groups"]
+            .as_sequence()
+            .expect("groups")
+            .iter()
+            .find(|group| group["name"].as_str() == Some("Netflix"))
+            .expect("Netflix group");
+        assert_eq!(netflix["proxies"][0], "电信优化");
     }
 
     #[test]
