@@ -27,9 +27,7 @@ pub async fn set_smart_network(
         .smart_route
         .as_ref()
         .is_some_and(|settings| !settings.remote_node_categories.is_empty());
-    if !has_remote_classifications
-        && let Err(error) = smart::refresh_remote_classifications().await
-    {
+    if !has_remote_classifications && let Err(error) = smart::refresh_remote_classifications().await {
         logging!(
             warn,
             Type::Config,
