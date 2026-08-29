@@ -72,7 +72,7 @@ pub fn apply_smart_routes(config: &mut Mapping, settings: &SmartRouteConfig) -> 
         groups.push(Value::Mapping(build_url_test_group_with_providers(
             ALL_GROUP_NAME,
             existing_nodes,
-            provider_names,
+            provider_names.clone(),
         )));
         added += 1;
     }
