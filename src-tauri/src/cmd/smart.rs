@@ -4,7 +4,7 @@ use crate::{
     feat,
     smart::{
         self,
-        model::{NetworkOperator, SmartClassificationSyncResult},
+        model::{NetworkOperator, SmartClassificationSyncResult, SmartNetworkState},
     },
 };
 use clash_verge_logging::{Type, logging};
@@ -18,22 +18,7 @@ pub async fn set_smart_network(
         return Err(coded_error("SMART_ROUTE_INVALID_OPERATOR", "无法识别当前网络运营商"));
     };
 
-    // A fresh install or a race between the first proxy refresh and this
-    // dialog can leave the catalog empty. Fetch it before generating the
-    // runtime config so the selected operator has real optimized members.
-    let has_remote_classifications = Config::verge()
-        .await
-        .latest_arc()
-        .smart_route
-        .as_ref()
-        .is_some_and(|settings| !settings.remote_node_categories.is_empty());
-    if !has_remote_classifications && let Err(error) = smart::refresh_remote_classifications().await {
-        logging!(
-            warn,
-            Type::Config,
-            "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
-        );
-    }
+    ensure_remote_classifications().await;
 
     let previous_network = smart::update_network(operator, confidence);
     let preference_changed = match smart::persist_preferred_operator(operator).await {
@@ -51,24 +36,55 @@ pub async fn set_smart_network(
         return Ok(crate::core::validate::ValidationOutcome::Valid);
     }
 
+    apply_smart_network(previous_network).await
+}
+
+/// Makes sure the first operator selection cannot race the initial catalog
+/// download. Failure is non-fatal because the last successful catalog, or the
+/// all-nodes fallback, is still usable.
+async fn ensure_remote_classifications() {
+    let has_remote_classifications = Config::verge()
+        .await
+        .latest_arc()
+        .smart_route
+        .as_ref()
+        .is_some_and(|settings| !settings.remote_node_categories.is_empty());
+    if has_remote_classifications {
+        return;
+    }
+
+    if let Err(error) = smart::refresh_remote_classifications().await {
+        logging!(
+            warn,
+            Type::Config,
+            "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
+        );
+    }
+}
+
+async fn apply_smart_network(
+    previous_network: Option<SmartNetworkState>,
+) -> CmdResult<crate::core::validate::ValidationOutcome> {
     match feat::enhance_profiles().await {
         Ok(outcome) if outcome.is_valid() => {
             crate::core::handle::Handle::refresh_clash();
             Ok(outcome)
         }
         Ok(outcome) => {
-            if let Some(previous_network) = previous_network.clone() {
-                smart::restore_network(previous_network);
-            }
+            restore_network(previous_network.as_ref());
             Ok(outcome)
         }
         Err(error) => {
-            if let Some(previous_network) = previous_network.clone() {
-                smart::restore_network(previous_network);
-            }
+            restore_network(previous_network.as_ref());
             logging!(error, Type::Config, "自动选线配置应用失败: {error:#}");
             Err(coded_error("SMART_ROUTE_APPLY_FAILED", error))
         }
+    }
+}
+
+fn restore_network(previous_network: Option<&SmartNetworkState>) {
+    if let Some(previous_network) = previous_network {
+        smart::restore_network(previous_network.clone());
     }
 }
 
