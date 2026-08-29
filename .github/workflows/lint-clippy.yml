@@ -78,7 +78,31 @@ jobs:
 
       - name: Run Clippy
         working-directory: ./src-tauri
-        run: cargo clippy-all
+        shell: bash
+        run: |
+          set +e
+          cargo clippy-all 2>&1 | tee "$RUNNER_TEMP/clippy.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "### Clippy diagnostics"
+              echo '```text'
+              sed -n '1,240p' "$RUNNER_TEMP/clippy.log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            while IFS= read -r line; do
+              echo "::error::$line"
+            done < <(grep -E '^(error|warning)|^ *-->' "$RUNNER_TEMP/clippy.log" || true)
+          fi
+          exit "$status"
+
+      - name: Upload Clippy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: clippy-diagnostics-${{ matrix.os }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/clippy.log
+          if-no-files-found: ignore
 
       - name: Run Windows security tests
         if: matrix.os == 'windows-latest' && (github.event_name == 'workflow_dispatch' || steps.check_changes.outputs.rust == 'true')
