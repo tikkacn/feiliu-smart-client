@@ -1,15 +1,13 @@
 use crate::{
     cmd::{CmdResult, coded_error},
-    config::{Config, IVerge},
+    config::Config,
     feat,
     smart::{
         self,
         model::{NetworkOperator, SmartClassificationSyncResult},
-        remote,
     },
 };
 use clash_verge_logging::{Type, logging};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tauri::command]
 pub async fn set_smart_network(
@@ -19,9 +17,37 @@ pub async fn set_smart_network(
     let Some(operator) = NetworkOperator::parse(&operator) else {
         return Err(coded_error("SMART_ROUTE_INVALID_OPERATOR", "无法识别当前网络运营商"));
     };
-    let Some(previous_network) = smart::update_network(operator, confidence) else {
-        return Ok(crate::core::validate::ValidationOutcome::Valid);
+
+    // A fresh install or a race between the first proxy refresh and this
+    // dialog can leave the catalog empty. Fetch it before generating the
+    // runtime config so the selected operator has real optimized members.
+    let has_remote_classifications = Config::verge()
+        .await
+        .latest_arc()
+        .smart_route
+        .as_ref()
+        .is_some_and(|settings| !settings.remote_node_categories.is_empty());
+    if !has_remote_classifications {
+        if let Err(error) = smart::refresh_remote_classifications().await {
+            logging!(warn, Type::Config, "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}");
+        }
+    }
+
+    let previous_network = smart::update_network(operator, confidence);
+    let preference_changed = match smart::persist_preferred_operator(operator).await {
+        Ok(changed) => changed,
+        Err(error) => {
+            if let Some(previous_network) = previous_network.clone() {
+                smart::restore_network(previous_network);
+            }
+            logging!(error, Type::Config, "保存自动选线运营商失败: {error:#}");
+            return Err(coded_error("SMART_ROUTE_PREFERENCE_SAVE_FAILED", error));
+        }
     };
+
+    if previous_network.is_none() && !preference_changed {
+        return Ok(crate::core::validate::ValidationOutcome::Valid);
+    }
 
     match feat::enhance_profiles().await {
         Ok(outcome) if outcome.is_valid() => {
@@ -29,11 +55,15 @@ pub async fn set_smart_network(
             Ok(outcome)
         }
         Ok(outcome) => {
-            smart::restore_network(previous_network);
+            if let Some(previous_network) = previous_network.clone() {
+                smart::restore_network(previous_network);
+            }
             Ok(outcome)
         }
         Err(error) => {
-            smart::restore_network(previous_network);
+            if let Some(previous_network) = previous_network.clone() {
+                smart::restore_network(previous_network);
+            }
             logging!(error, Type::Config, "自动选线配置应用失败: {error:#}");
             Err(coded_error("SMART_ROUTE_APPLY_FAILED", error))
         }
@@ -45,43 +75,7 @@ pub async fn set_smart_network(
 /// are cleared after a successful fetch so they cannot override website data.
 #[tauri::command]
 pub async fn sync_smart_classifications() -> CmdResult<SmartClassificationSyncResult> {
-    let manifest = remote::fetch_manifest()
+    smart::refresh_remote_classifications()
         .await
-        .map_err(|error| coded_error("SMART_ROUTE_REMOTE_SYNC_FAILED", error))?;
-    let categories = remote::classification_map(&manifest);
-    let fetched_at = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_secs());
-
-    let mut smart_route = Config::verge()
-        .await
-        .latest_arc()
-        .smart_route
-        .clone()
-        .unwrap_or_default();
-    smart_route.node_categories.clear();
-    smart_route.remote_node_categories = categories.clone();
-    smart_route.remote_manifest_version = Some(manifest.version);
-    smart_route.remote_manifest_updated_at = Some(manifest.updated_at.clone());
-
-    match feat::patch_verge(
-        &IVerge {
-            smart_route: Some(smart_route),
-            ..IVerge::default()
-        },
-        false,
-    )
-    .await
-    {
-        Ok(()) => Ok(SmartClassificationSyncResult {
-            version: manifest.version,
-            updated_at: manifest.updated_at,
-            categories: categories.len(),
-            fetched_at,
-        }),
-        Err(error) => {
-            logging!(error, Type::Config, "远程节点分类应用失败: {error:#}");
-            Err(coded_error("SMART_ROUTE_REMOTE_APPLY_FAILED", error))
-        }
-    }
+        .map_err(|error| coded_error("SMART_ROUTE_REMOTE_SYNC_FAILED", error))
 }

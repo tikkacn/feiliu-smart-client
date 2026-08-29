@@ -141,6 +141,11 @@ pub struct SmartRouteConfig {
     pub remote_manifest_version: Option<u64>,
     #[serde(default)]
     pub remote_manifest_updated_at: Option<String>,
+    /// The operator selected by the user. The live detector can temporarily
+    /// be unknown (for example when the public IP lookup is unavailable), so
+    /// the persisted choice remains the stable default for MATCH routing.
+    #[serde(default)]
+    pub preferred_operator: NetworkOperator,
     #[serde(default = "default_builtin_rules")]
     pub use_builtin_rules: bool,
     #[serde(default)]
@@ -154,6 +159,7 @@ impl Default for SmartRouteConfig {
             remote_node_categories: BTreeMap::new(),
             remote_manifest_version: None,
             remote_manifest_updated_at: None,
+            preferred_operator: NetworkOperator::Unknown,
             use_builtin_rules: true,
             custom_rules: Vec::new(),
         }

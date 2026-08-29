@@ -207,15 +207,22 @@ fn regex_escape(value: &str) -> String {
 }
 
 fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping, provider_names: &[String]) -> &'static str {
+    // The live IP detector is authoritative when it knows the operator. If
+    // detection is unavailable, keep using the user's persisted choice rather
+    // than silently falling back to 全部节点 after a subscription refresh.
     let detected = current_network().operator;
-    let detected_group = match detected {
+    let selected_operator = match detected {
+        NetworkOperator::Unknown => settings.preferred_operator,
+        operator => operator,
+    };
+    let detected_group = match selected_operator {
         NetworkOperator::Telecom => TELECOM_GROUP_NAME,
         NetworkOperator::Unicom => UNICOM_GROUP_NAME,
         NetworkOperator::Mobile => MOBILE_GROUP_NAME,
         NetworkOperator::Unknown => ALL_GROUP_NAME,
     };
 
-    if detected == NetworkOperator::Unknown {
+    if selected_operator == NetworkOperator::Unknown {
         return ALL_GROUP_NAME;
     }
 
@@ -227,7 +234,7 @@ fn selected_default_group(settings: &SmartRouteConfig, config: &Mapping, provide
     };
     let has_matching_node = candidates
         .iter()
-        .any(|name| effective_category(settings, name).is_some_and(|category| category.includes(detected)));
+        .any(|name| effective_category(settings, name).is_some_and(|category| category.includes(selected_operator)));
     if has_matching_node {
         detected_group
     } else {

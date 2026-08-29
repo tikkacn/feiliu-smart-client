@@ -139,6 +139,7 @@ async fn perform_profile_update(
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 更新订阅配置成功");
             profiles_draft_update_item_safe(uid, &mut item).await?;
+            refresh_smart_classifications_after_update(is_current).await;
             return Ok(is_current);
         }
         Err(err) => {
@@ -159,6 +160,7 @@ async fn perform_profile_update(
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 使用 Clash代理 更新订阅配置成功");
             profiles_draft_update_item_safe(uid, &mut item).await?;
+            refresh_smart_classifications_after_update(is_current).await;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
             return Ok(is_current);
@@ -181,6 +183,7 @@ async fn perform_profile_update(
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 使用 系统代理 更新订阅配置成功");
             profiles_draft_update_item_safe(uid, &mut item).await?;
+            refresh_smart_classifications_after_update(is_current).await;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
             return Ok(is_current);
@@ -200,6 +203,31 @@ async fn perform_profile_update(
         handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
     }
     Ok(is_current)
+}
+
+/// Refresh the classification catalog after the subscription has been saved,
+/// but do not make an otherwise successful subscription update fail when the
+/// optional management site is temporarily unavailable. Keeping the last
+/// successful catalog is safer than clearing it and generating 全部节点.
+async fn refresh_smart_classifications_after_update(is_current: bool) {
+    if !is_current {
+        return;
+    }
+
+    match crate::smart::refresh_remote_classifications().await {
+        Ok(result) => logging!(
+            info,
+            Type::Config,
+            "[订阅更新] 节点分类已同步: v{}, {}条",
+            result.version,
+            result.categories
+        ),
+        Err(error) => logging!(
+            warn,
+            Type::Config,
+            "[订阅更新] 节点分类同步失败，保留上次分类结果: {error:#}"
+        ),
+    }
 }
 
 pub async fn update_profile(

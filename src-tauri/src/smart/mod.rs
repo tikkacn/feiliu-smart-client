@@ -3,12 +3,18 @@ pub mod overlay;
 pub mod remote;
 pub mod rules;
 
+use anyhow::Result;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
 
-use self::model::{NetworkOperator, SmartNetworkState};
+use crate::{
+    config::{Config, IVerge},
+    feat,
+};
+
+use self::model::{NetworkOperator, SmartClassificationSyncResult, SmartNetworkState};
 
 static NETWORK_STATE: OnceLock<RwLock<SmartNetworkState>> = OnceLock::new();
 
@@ -46,4 +52,71 @@ pub fn restore_network(previous: SmartNetworkState) {
 
 pub fn current_network() -> SmartNetworkState {
     network_store().read().clone()
+}
+
+/// Downloads and persists the current node classification catalog.
+///
+/// This belongs in the backend update path as well as the frontend command:
+/// subscription regeneration must see the catalog before it builds the
+/// operator groups. The existing route preferences are intentionally cloned,
+/// so refreshing the catalog never resets the user's selected operator or
+/// rule settings.
+pub async fn refresh_remote_classifications() -> Result<SmartClassificationSyncResult> {
+    let manifest = remote::fetch_manifest().await?;
+    let categories = remote::classification_map(&manifest);
+    let fetched_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs());
+
+    let mut smart_route = Config::verge()
+        .await
+        .latest_arc()
+        .smart_route
+        .clone()
+        .unwrap_or_default();
+    smart_route.node_categories.clear();
+    smart_route.remote_node_categories = categories.clone();
+    smart_route.remote_manifest_version = Some(manifest.version);
+    smart_route.remote_manifest_updated_at = Some(manifest.updated_at.clone());
+
+    feat::patch_verge(
+        &IVerge {
+            smart_route: Some(smart_route),
+            ..IVerge::default()
+        },
+        false,
+    )
+    .await?;
+
+    Ok(SmartClassificationSyncResult {
+        version: manifest.version,
+        updated_at: manifest.updated_at,
+        categories: categories.len(),
+        fetched_at,
+    })
+}
+
+/// Persists the user-selected operator without changing the live detector
+/// state. Returns whether the saved configuration actually changed.
+pub async fn persist_preferred_operator(operator: NetworkOperator) -> Result<bool> {
+    let mut smart_route = Config::verge()
+        .await
+        .latest_arc()
+        .smart_route
+        .clone()
+        .unwrap_or_default();
+    if smart_route.preferred_operator == operator {
+        return Ok(false);
+    }
+
+    smart_route.preferred_operator = operator;
+    feat::patch_verge(
+        &IVerge {
+            smart_route: Some(smart_route),
+            ..IVerge::default()
+        },
+        false,
+    )
+    .await?;
+    Ok(true)
 }
