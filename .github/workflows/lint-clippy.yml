@@ -90,11 +90,12 @@ jobs:
               sed -n '1,240p' "$RUNNER_TEMP/clippy.log"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            while IFS= read -r line; do
-              if [[ "$line" == *error:* || "$line" == *warning:* || "$line" == *" --> "* ]]; then
-                echo "::error::$line"
-              fi
-            done < "$RUNNER_TEMP/clippy.log"
+            encoded_log=$(base64 < "$RUNNER_TEMP/clippy.log" | tr -d '\r\n')
+            while [ -n "$encoded_log" ]; do
+              chunk=${encoded_log:0:200}
+              encoded_log=${encoded_log:200}
+              echo "::error title=Clippy diagnostic::$chunk"
+            done
           fi
           exit "$status"
 
