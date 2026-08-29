@@ -1,3 +1,5 @@
+use std::{future::Future, pin::Pin};
+
 use crate::{
     cmd::{CmdResult, coded_error},
     config::Config,
@@ -21,7 +23,7 @@ pub async fn set_smart_network(
     ensure_remote_classifications().await;
 
     let previous_network = smart::update_network(operator, confidence);
-    let preference_changed = match smart::persist_preferred_operator(operator).await {
+    let preference_changed = match Box::pin(smart::persist_preferred_operator(operator)).await {
         Ok(changed) => changed,
         Err(error) => {
             if let Some(previous_network) = previous_network.clone() {
@@ -42,24 +44,26 @@ pub async fn set_smart_network(
 /// Makes sure the first operator selection cannot race the initial catalog
 /// download. Failure is non-fatal because the last successful catalog, or the
 /// all-nodes fallback, is still usable.
-async fn ensure_remote_classifications() {
-    let has_remote_classifications = Config::verge()
-        .await
-        .latest_arc()
-        .smart_route
-        .as_ref()
-        .is_some_and(|settings| !settings.remote_node_categories.is_empty());
-    if has_remote_classifications {
-        return;
-    }
+fn ensure_remote_classifications() -> Pin<Box<dyn Future<Output = ()> + Send>> {
+    Box::pin(async {
+        let has_remote_classifications = Config::verge()
+            .await
+            .latest_arc()
+            .smart_route
+            .as_ref()
+            .is_some_and(|settings| !settings.remote_node_categories.is_empty());
+        if has_remote_classifications {
+            return;
+        }
 
-    if let Err(error) = smart::refresh_remote_classifications().await {
-        logging!(
-            warn,
-            Type::Config,
-            "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
-        );
-    }
+        if let Err(error) = Box::pin(smart::refresh_remote_classifications()).await {
+            logging!(
+                warn,
+                Type::Config,
+                "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
+            );
+        }
+    })
 }
 
 async fn apply_smart_network(
@@ -93,7 +97,7 @@ fn restore_network(previous_network: Option<&SmartNetworkState>) {
 /// are cleared after a successful fetch so they cannot override website data.
 #[tauri::command]
 pub async fn sync_smart_classifications() -> CmdResult<SmartClassificationSyncResult> {
-    smart::refresh_remote_classifications_and_apply()
+    Box::pin(smart::refresh_remote_classifications_and_apply())
         .await
         .map_err(|error| coded_error("SMART_ROUTE_REMOTE_SYNC_FAILED", error))
 }

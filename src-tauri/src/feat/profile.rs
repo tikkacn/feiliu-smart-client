@@ -1,3 +1,5 @@
+use std::{future::Future, pin::Pin};
+
 use crate::{
     cmd,
     config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
@@ -209,25 +211,27 @@ async fn perform_profile_update(
 /// but do not make an otherwise successful subscription update fail when the
 /// optional management site is temporarily unavailable. Keeping the last
 /// successful catalog is safer than clearing it and generating 全部节点.
-async fn refresh_smart_classifications_after_update(is_current: bool) {
-    if !is_current {
-        return;
-    }
+fn refresh_smart_classifications_after_update(is_current: bool) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+    Box::pin(async move {
+        if !is_current {
+            return;
+        }
 
-    match crate::smart::refresh_remote_classifications().await {
-        Ok(result) => logging!(
-            info,
-            Type::Config,
-            "[订阅更新] 节点分类已同步: v{}, {}条",
-            result.version,
-            result.categories
-        ),
-        Err(error) => logging!(
-            warn,
-            Type::Config,
-            "[订阅更新] 节点分类同步失败，保留上次分类结果: {error:#}"
-        ),
-    }
+        match crate::smart::refresh_remote_classifications().await {
+            Ok(result) => logging!(
+                info,
+                Type::Config,
+                "[订阅更新] 节点分类已同步: v{}, {}条",
+                result.version,
+                result.categories
+            ),
+            Err(error) => logging!(
+                warn,
+                Type::Config,
+                "[订阅更新] 节点分类同步失败，保留上次分类结果: {error:#}"
+            ),
+        }
+    })
 }
 
 pub async fn update_profile(

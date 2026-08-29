@@ -101,14 +101,14 @@ pub async fn refresh_remote_classifications() -> Result<SmartClassificationSyncR
 /// call the persistence-only function above and rebuild once in their normal
 /// update transaction.
 pub async fn refresh_remote_classifications_and_apply() -> Result<SmartClassificationSyncResult> {
-    let result = refresh_remote_classifications().await?;
-    match feat::enhance_profiles().await? {
-        outcome if outcome.is_valid() => {
-            crate::core::handle::Handle::refresh_clash();
-            Ok(result)
-        }
-        outcome => bail!("应用节点分类后的运行配置失败: {outcome}"),
+    let result = Box::pin(refresh_remote_classifications()).await?;
+    let outcome = feat::enhance_profiles().await?;
+    if !outcome.is_valid() {
+        bail!("应用节点分类后的运行配置失败: {outcome}");
     }
+
+    crate::core::handle::Handle::refresh_clash();
+    Ok(result)
 }
 
 /// Persists the user-selected operator without changing the live detector
