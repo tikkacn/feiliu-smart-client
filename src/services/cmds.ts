@@ -244,10 +244,6 @@ export async function getAppDir() {
   return invoke<string>('get_app_dir')
 }
 
-export async function importRuleFile(path: string, ruleId: string) {
-  return invoke<string>('import_rule_file', { path, ruleId })
-}
-
 export async function openAppDir() {
   return invoke<void>('open_app_dir').catch((err) => showNotice.error(err))
 }
