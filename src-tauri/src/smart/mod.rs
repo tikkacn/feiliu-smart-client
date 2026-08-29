@@ -3,10 +3,10 @@ pub mod overlay;
 pub mod remote;
 pub mod rules;
 
-use anyhow::Result;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use anyhow::{Result, bail};
 use parking_lot::RwLock;
 
 use crate::{
@@ -94,6 +94,21 @@ pub async fn refresh_remote_classifications() -> Result<SmartClassificationSyncR
         categories: categories.len(),
         fetched_at,
     })
+}
+
+/// Refreshes the catalog and immediately rebuilds the active runtime config.
+/// This is used by the standalone frontend sync command; subscription updates
+/// call the persistence-only function above and rebuild once in their normal
+/// update transaction.
+pub async fn refresh_remote_classifications_and_apply() -> Result<SmartClassificationSyncResult> {
+    let result = refresh_remote_classifications().await?;
+    match feat::enhance_profiles().await? {
+        outcome if outcome.is_valid() => {
+            crate::core::handle::Handle::refresh_clash();
+            Ok(result)
+        }
+        outcome => bail!("应用节点分类后的运行配置失败: {outcome}"),
+    }
 }
 
 /// Persists the user-selected operator without changing the live detector

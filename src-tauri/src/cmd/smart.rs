@@ -29,7 +29,11 @@ pub async fn set_smart_network(
         .is_some_and(|settings| !settings.remote_node_categories.is_empty());
     if !has_remote_classifications {
         if let Err(error) = smart::refresh_remote_classifications().await {
-            logging!(warn, Type::Config, "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}");
+            logging!(
+                warn,
+                Type::Config,
+                "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
+            );
         }
     }
 
@@ -75,7 +79,7 @@ pub async fn set_smart_network(
 /// are cleared after a successful fetch so they cannot override website data.
 #[tauri::command]
 pub async fn sync_smart_classifications() -> CmdResult<SmartClassificationSyncResult> {
-    smart::refresh_remote_classifications()
+    smart::refresh_remote_classifications_and_apply()
         .await
         .map_err(|error| coded_error("SMART_ROUTE_REMOTE_SYNC_FAILED", error))
 }
