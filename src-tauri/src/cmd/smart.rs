@@ -27,14 +27,14 @@ pub async fn set_smart_network(
         .smart_route
         .as_ref()
         .is_some_and(|settings| !settings.remote_node_categories.is_empty());
-    if !has_remote_classifications {
-        if let Err(error) = smart::refresh_remote_classifications().await {
-            logging!(
-                warn,
-                Type::Config,
-                "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
-            );
-        }
+    if !has_remote_classifications
+        && let Err(error) = smart::refresh_remote_classifications().await
+    {
+        logging!(
+            warn,
+            Type::Config,
+            "自动选线前更新节点分类失败，将继续使用已有配置: {error:#}"
+        );
     }
 
     let previous_network = smart::update_network(operator, confidence);
