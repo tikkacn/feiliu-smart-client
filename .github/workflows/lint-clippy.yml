@@ -83,7 +83,18 @@ jobs:
       - name: Run Windows security tests
         if: matrix.os == 'windows-latest' && (github.event_name == 'workflow_dispatch' || steps.check_changes.outputs.rust == 'true')
         working-directory: ./src-tauri
-        run: cargo test --all-features --target ${{ matrix.target }}
+        shell: pwsh
+        run: |
+          cargo test --all-features --target ${{ matrix.target }} -- --nocapture 2>&1 | Tee-Object -FilePath windows-security-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows security test log
+        if: always() && matrix.os == 'windows-latest' && (github.event_name == 'workflow_dispatch' || steps.check_changes.outputs.rust == 'true')
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-security-test-log
+          path: src-tauri/windows-security-tests.log
+          if-no-files-found: ignore
 
       - name: Run Logging Check
         working-directory: ./src-tauri
