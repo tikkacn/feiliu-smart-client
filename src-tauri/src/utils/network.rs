@@ -317,6 +317,32 @@ impl NetworkManager {
         }
     }
 
+    /// Performs a request with the bundled WebPKI root set from the start.
+    ///
+    /// Most application traffic should continue to use [`Self::get_with_interrupt`]
+    /// so the platform verifier remains the default. A small number of
+    /// application-owned endpoints need this deterministic path because the
+    /// Windows platform verifier can block while checking certificate state
+    /// during early application startup.
+    pub async fn get_with_static_webpki_roots(
+        &self,
+        url: &str,
+        proxy_type: ProxyType,
+        timeout_secs: Option<u64>,
+        user_agent: Option<String>,
+        accept_invalid_certs: bool,
+    ) -> Result<HttpResponse> {
+        self.get_with_tls_mode(
+            url,
+            proxy_type,
+            timeout_secs,
+            user_agent,
+            accept_invalid_certs,
+            TlsRootMode::StaticWebpkiRoots,
+        )
+        .await
+    }
+
     async fn get_bytes_with_tls_mode(
         &self,
         url: &str,

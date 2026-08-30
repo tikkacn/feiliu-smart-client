@@ -882,6 +882,8 @@ interface SmartRouteConfig {
   remoteNodeCategories?: Record<string, SmartLineCategory>
   remoteManifestVersion?: number
   remoteManifestUpdatedAt?: string
+  preferredOperator?: 'telecom' | 'unicom' | 'mobile' | 'unknown'
+  operatorConfirmed?: boolean
   useBuiltinRules?: boolean
   customRules?: CustomRuleSet[]
 }

@@ -23,6 +23,7 @@ import { runStateQueryKey } from '@/hooks/use-system-state'
 import { useVerge } from '@/hooks/use-verge'
 import { getIpInfo } from '@/services/api'
 import {
+  applySmartClassificationManifest,
   getAppUptime,
   getProxyView,
   getRuntimeState,
@@ -33,7 +34,12 @@ import {
 import { subscribeVergeEvents } from '@/services/events'
 import { showNotice } from '@/services/notice-service'
 import { revalidateQueries, useQuery } from '@/services/query-client'
-import { classifySmartOperator, type SmartOperator } from '@/types/smart-route'
+import {
+  classifySmartOperator,
+  decideSmartOperatorPrompt,
+  type SmartClassificationManifest,
+  type SmartOperator,
+} from '@/types/smart-route'
 import { resolveDisplayedMixedPort } from '@/utils/mixed-port'
 
 import {
@@ -62,6 +68,10 @@ const TQ_DEFAULTS = {
 } as const
 
 const SMART_CLASSIFICATION_REFRESH_INTERVAL = 6 * 60 * 60 * 1000
+const SMART_CLASSIFICATION_MANIFEST_URL =
+  'https://jiedian.328671.xyz/manifest.php'
+const SMART_OPERATOR_REFRESH_INTERVAL = 2 * 60 * 1000
+const SMART_OPERATOR_AUTO_SWITCH_SECONDS = 10
 
 const SMART_OPERATOR_LABEL_KEYS: Record<SmartOperator, string> = {
   telecom: 'settings.sections.smartRoute.network.telecom',
@@ -74,6 +84,45 @@ interface SmartNetworkPrompt {
   detectedOperator: SmartOperator
   detectedConfidence: number
   changed: boolean
+}
+
+async function syncSmartClassificationsWithFallback() {
+  // WebView2 uses the same native network path as the browser, which remains
+  // available on Windows systems where the Rust TLS verifier or early TUN
+  // routing blocks the backend transport. Rust still validates and persists
+  // this payload before it can affect the runtime configuration. Prefer this
+  // proven path so a known-slow backend verifier cannot delay group creation.
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 8000)
+  let webViewError: unknown
+  try {
+    const url = new URL(SMART_CLASSIFICATION_MANIFEST_URL)
+    url.searchParams.set('_', String(Date.now()))
+    const response = await window.fetch(url, {
+      cache: 'no-store',
+      credentials: 'omit',
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      throw new Error(`classification service returned HTTP ${response.status}`)
+    }
+    const manifest = (await response.json()) as SmartClassificationManifest
+    return await applySmartClassificationManifest(manifest)
+  } catch (error) {
+    webViewError = error
+  } finally {
+    window.clearTimeout(timeout)
+  }
+
+  try {
+    return await syncSmartClassifications()
+  } catch (backendError) {
+    throw new AggregateError(
+      [backendError, webViewError],
+      'unable to synchronize line classifications',
+      { cause: backendError },
+    )
+  }
 }
 
 function useStableFn<T extends (...args: any[]) => any>(fn: T): T {
@@ -89,7 +138,7 @@ export const AppDataProvider = ({
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
-  const { verge } = useVerge()
+  const { verge, mutateVerge } = useVerge()
   const { data: runtimeConfig } = useRuntimeConfig()
   const { clashInfo } = useClashInfo()
 
@@ -162,12 +211,27 @@ export const AppDataProvider = ({
   )
   const remoteSyncSignatureRef = useRef<string | null>(null)
   const hasVerge = Boolean(verge)
-  const detectedOperatorRef = useRef<SmartOperator | null>(null)
+  const preferredOperator =
+    verge?.smart_route?.preferredOperator ?? ('unknown' as const)
+  const operatorConfirmed =
+    verge?.smart_route?.operatorConfirmed ?? preferredOperator !== 'unknown'
+  const savedSmartOperatorRef = useRef<SmartOperator>(preferredOperator)
+  const operatorConfirmedRef = useRef(operatorConfirmed)
+  const promptedDetectionRef = useRef<string | null>(null)
+  const detectingSmartNetworkRef = useRef(false)
   const [smartNetworkPrompt, setSmartNetworkPrompt] =
     React.useState<SmartNetworkPrompt | null>(null)
   const [selectedSmartOperator, setSelectedSmartOperator] =
     React.useState<SmartOperator>('unknown')
+  const [smartNetworkCountdown, setSmartNetworkCountdown] = React.useState<
+    number | null
+  >(null)
   const [applyingSmartNetwork, setApplyingSmartNetwork] = React.useState(false)
+
+  useEffect(() => {
+    savedSmartOperatorRef.current = preferredOperator
+    operatorConfirmedRef.current = operatorConfirmed
+  }, [operatorConfirmed, preferredOperator])
 
   useEffect(() => {
     if (!hasVerge || !proxyNodeSignature) {
@@ -195,7 +259,7 @@ export const AppDataProvider = ({
 
       remoteSyncSignatureRef.current = proxyNodeSignature
       try {
-        await syncSmartClassifications()
+        await syncSmartClassificationsWithFallback()
         retryDelay = 30_000
       } catch (error) {
         remoteSyncSignatureRef.current = null
@@ -219,10 +283,12 @@ export const AppDataProvider = ({
   }, [hasVerge, proxyNodeSignature])
 
   useEffect(() => {
-    if (!proxyNodeSignature) return
+    if (!hasVerge || !proxyNodeSignature) return
     let disposed = false
 
     const refreshSmartNetwork = async () => {
+      if (detectingSmartNetworkRef.current) return
+      detectingSmartNetworkRef.current = true
       try {
         const ipInfo = await getIpInfo()
         if (disposed) return
@@ -233,57 +299,133 @@ export const AppDataProvider = ({
               isp: ipInfo.asn_organization || ipInfo.organization,
             })
           : { operator: 'unknown' as const, confidence: 0.15 }
-        if (detectedOperatorRef.current === network.operator) return
-
-        const changed = detectedOperatorRef.current !== null
-        detectedOperatorRef.current = network.operator
-        setSelectedSmartOperator(network.operator)
-        setSmartNetworkPrompt({
+        const decision = decideSmartOperatorPrompt({
+          countryCode: ipInfo.country_code,
           detectedOperator: network.operator,
+          preferredOperator: savedSmartOperatorRef.current,
+          operatorConfirmed: operatorConfirmedRef.current,
+        })
+        if (decision.kind === 'none') return
+
+        const detectionFingerprint = `${isDomestic ? 'CN' : 'FOREIGN'}:${decision.detectedOperator}`
+        if (promptedDetectionRef.current === detectionFingerprint) return
+        promptedDetectionRef.current = detectionFingerprint
+        setSelectedSmartOperator(decision.selectedOperator)
+        setSmartNetworkCountdown(
+          decision.kind === 'changed'
+            ? SMART_OPERATOR_AUTO_SWITCH_SECONDS
+            : null,
+        )
+        setSmartNetworkPrompt({
+          detectedOperator: decision.detectedOperator,
           detectedConfidence: network.confidence,
-          changed,
+          changed: decision.kind === 'changed',
         })
       } catch (error) {
-        // Automatic selection still works through Mihomo's local url-test group
-        // when the optional operator lookup is unavailable.
+        // The persisted operator remains authoritative when the optional
+        // public-IP lookup is unavailable.
         console.debug('[smart-route] network classification unavailable', error)
+      } finally {
+        detectingSmartNetworkRef.current = false
       }
     }
 
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshSmartNetwork()
+    }
+
     void refreshSmartNetwork()
-    const timer = window.setInterval(refreshSmartNetwork, 30 * 60 * 1000)
+    const timer = window.setInterval(
+      refreshSmartNetwork,
+      SMART_OPERATOR_REFRESH_INTERVAL,
+    )
+    window.addEventListener('online', refreshSmartNetwork)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
       disposed = true
       window.clearInterval(timer)
+      window.removeEventListener('online', refreshSmartNetwork)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
-  }, [proxyNodeSignature])
+  }, [hasVerge, proxyNodeSignature])
 
   const smartOperatorLabel = (operator: SmartOperator) =>
     t(SMART_OPERATOR_LABEL_KEYS[operator])
 
-  const applySmartNetwork = async () => {
-    if (!smartNetworkPrompt) return
-    const prompt = smartNetworkPrompt
-    // Operator persistence and runtime regeneration continue asynchronously,
-    // but confirming the choice should dismiss the modal immediately. Remote
-    // classification refresh is already managed independently by the sync
-    // effect above and must never block this interaction.
-    setSmartNetworkPrompt(null)
-    setApplyingSmartNetwork(true)
-    try {
-      const confidence =
-        selectedSmartOperator === prompt.detectedOperator
-          ? prompt.detectedConfidence
-          : selectedSmartOperator === 'unknown'
-            ? 0.15
-            : 1
-      await setSmartNetwork(selectedSmartOperator, confidence)
-    } catch (error) {
-      showNotice.error(error)
-    } finally {
-      setApplyingSmartNetwork(false)
+  const applySmartNetwork = useStableFn(
+    async (operatorOverride?: SmartOperator) => {
+      if (!smartNetworkPrompt) return
+      const prompt = smartNetworkPrompt
+      const operator = operatorOverride ?? selectedSmartOperator
+      const previousOperator = savedSmartOperatorRef.current
+      const previousConfirmed = operatorConfirmedRef.current
+      // Operator persistence and runtime regeneration continue asynchronously,
+      // but confirming the choice should dismiss the modal immediately. Remote
+      // classification refresh is already managed independently by the sync
+      // effect above and must never block this interaction.
+      setSmartNetworkPrompt(null)
+      setSmartNetworkCountdown(null)
+      setApplyingSmartNetwork(true)
+      savedSmartOperatorRef.current = operator
+      operatorConfirmedRef.current = true
+      mutateVerge((current) =>
+        current
+          ? {
+              ...current,
+              smart_route: {
+                ...(current.smart_route ?? {}),
+                preferredOperator: operator,
+                operatorConfirmed: true,
+              },
+            }
+          : current,
+      )
+      try {
+        const confidence =
+          operator === prompt.detectedOperator
+            ? prompt.detectedConfidence
+            : operator === 'unknown'
+              ? 0.15
+              : 1
+        await setSmartNetwork(operator, confidence)
+      } catch (error) {
+        savedSmartOperatorRef.current = previousOperator
+        operatorConfirmedRef.current = previousConfirmed
+        promptedDetectionRef.current = null
+        mutateVerge((current) =>
+          current
+            ? {
+                ...current,
+                smart_route: {
+                  ...(current.smart_route ?? {}),
+                  preferredOperator: previousOperator,
+                  operatorConfirmed: previousConfirmed,
+                },
+              }
+            : current,
+        )
+        showNotice.error(error)
+      } finally {
+        setApplyingSmartNetwork(false)
+      }
+    },
+  )
+
+  useEffect(() => {
+    if (!smartNetworkPrompt?.changed) return
+    const interval = window.setInterval(() => {
+      setSmartNetworkCountdown((current) =>
+        current === null ? null : Math.max(0, current - 1),
+      )
+    }, 1000)
+    const timeout = window.setTimeout(() => {
+      void applySmartNetwork(smartNetworkPrompt.detectedOperator)
+    }, SMART_OPERATOR_AUTO_SWITCH_SECONDS * 1000)
+    return () => {
+      window.clearInterval(interval)
+      window.clearTimeout(timeout)
     }
-  }
+  }, [applySmartNetwork, smartNetworkPrompt])
 
   const { data: uptimeData } = useQuery({
     queryKey: ['appUptime'],
@@ -468,7 +610,9 @@ export const AppDataProvider = ({
 
       <Dialog
         open={smartNetworkPrompt !== null}
-        onClose={() => setSmartNetworkPrompt(null)}
+        onClose={() => {
+          if (!smartNetworkPrompt?.changed) setSmartNetworkPrompt(null)
+        }}
         maxWidth="xs"
         fullWidth
       >
@@ -508,18 +652,23 @@ export const AppDataProvider = ({
           </FormControl>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => setSmartNetworkPrompt(null)}
-            disabled={applyingSmartNetwork}
-          >
-            {t('settings.sections.smartRoute.network.later')}
-          </Button>
+          {!smartNetworkPrompt?.changed && (
+            <Button
+              onClick={() => setSmartNetworkPrompt(null)}
+              disabled={applyingSmartNetwork}
+            >
+              {t('settings.sections.smartRoute.network.later')}
+            </Button>
+          )}
           <Button
             variant="contained"
             onClick={() => void applySmartNetwork()}
             disabled={applyingSmartNetwork}
           >
             {t('settings.sections.smartRoute.network.confirm')}
+            {smartNetworkPrompt?.changed && smartNetworkCountdown !== null
+              ? ` (${smartNetworkCountdown}s)`
+              : ''}
           </Button>
         </DialogActions>
       </Dialog>

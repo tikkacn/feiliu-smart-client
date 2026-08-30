@@ -3,7 +3,7 @@ use crate::{
     feat,
     smart::{
         self,
-        model::{NetworkOperator, SmartClassificationSyncResult, SmartNetworkState},
+        model::{NetworkOperator, RemoteClassificationManifest, SmartClassificationSyncResult, SmartNetworkState},
     },
 };
 use clash_verge_logging::{Type, logging};
@@ -67,7 +67,35 @@ fn restore_network(previous_network: Option<&SmartNetworkState>) {
 /// are cleared after a successful fetch so they cannot override website data.
 #[tauri::command]
 pub async fn sync_smart_classifications() -> CmdResult<SmartClassificationSyncResult> {
-    Box::pin(smart::refresh_remote_classifications_and_apply())
+    let result = Box::pin(smart::refresh_remote_classifications_and_apply())
         .await
-        .map_err(|error| coded_error("SMART_ROUTE_REMOTE_SYNC_FAILED", error))
+        .map_err(|error| coded_error("SMART_ROUTE_REMOTE_SYNC_FAILED", error))?;
+    logging!(
+        info,
+        Type::Config,
+        "节点分类同步成功（后端网络）: v{}, {}条",
+        result.version,
+        result.categories
+    );
+    Ok(result)
+}
+
+/// Applies a manifest downloaded through the WebView's native network stack.
+/// This is a transport fallback only; validation, persistence and runtime
+/// regeneration remain in Rust.
+#[tauri::command]
+pub async fn apply_smart_classification_manifest(
+    manifest: RemoteClassificationManifest,
+) -> CmdResult<SmartClassificationSyncResult> {
+    let result = Box::pin(smart::persist_remote_classifications_and_apply(manifest))
+        .await
+        .map_err(|error| coded_error("SMART_ROUTE_REMOTE_MANIFEST_INVALID", error))?;
+    logging!(
+        info,
+        Type::Config,
+        "节点分类同步成功（WebView网络回退）: v{}, {}条",
+        result.version,
+        result.categories
+    );
+    Ok(result)
 }

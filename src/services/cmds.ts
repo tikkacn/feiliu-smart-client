@@ -5,6 +5,7 @@ import type { CommandFailure } from '@/services/notice-service'
 import { showNotice } from '@/services/notice-service'
 import type { ProxyViewV1 } from '@/types/proxy-view'
 import type {
+  SmartClassificationManifest,
   SmartClassificationSyncResult,
   SmartOperator,
 } from '@/types/smart-route'
@@ -33,6 +34,15 @@ export function setSmartNetwork(operator: SmartOperator, confidence: number) {
 
 export function syncSmartClassifications() {
   return invoke<SmartClassificationSyncResult>('sync_smart_classifications')
+}
+
+export function applySmartClassificationManifest(
+  manifest: SmartClassificationManifest,
+) {
+  return invoke<SmartClassificationSyncResult>(
+    'apply_smart_classification_manifest',
+    { manifest },
+  )
 }
 
 export async function patchProfilesConfig(profiles: IProfilesConfig) {

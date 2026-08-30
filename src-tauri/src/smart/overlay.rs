@@ -387,6 +387,65 @@ mod tests {
     }
 
     #[test]
+    fn published_catalog_intersection_builds_all_operator_groups() {
+        restore_network(SmartNetworkState::default());
+        let mut config = serde_yaml_ng::from_str::<Value>(
+            "proxies:\n  - name: AWS-JP(日本1)\n    type: vless\n  - name: DVV-US(美国1)\n    type: anytls\n  - name: DMIT-US（美国5-电信优化）\n    type: anytls\n  - name: VMISS-US(美国7-三网优化)\n    type: anytls\n  - name: unclassified\n    type: anytls\nproxy-groups: []\nrules:\n  - MATCH,Proxy\n",
+        )
+        .expect("parse config")
+        .as_mapping()
+        .cloned()
+        .expect("mapping");
+        let settings = SmartRouteConfig {
+            remote_node_categories: BTreeMap::from([
+                (String::from("aws-jp(日本1)"), LineCategory::UnicomMobile),
+                (String::from("dvv-us(美国1)"), LineCategory::TelecomUnicom),
+                (String::from("dmit-us（美国5-电信优化）"), LineCategory::Telecom),
+                (String::from("vmiss-us(美国7-三网优化)"), LineCategory::ThreeNetwork),
+            ]),
+            preferred_operator: NetworkOperator::Telecom,
+            ..SmartRouteConfig::default()
+        };
+
+        assert_eq!(apply_smart_routes(&mut config, &settings), 4);
+
+        let groups = config["proxy-groups"].as_sequence().expect("groups");
+        let group = |name: &str| {
+            groups
+                .iter()
+                .find(|group| group["name"].as_str() == Some(name))
+                .expect("operator group")
+        };
+        assert!(
+            group("电信优化")["filter"]
+                .as_str()
+                .expect("telecom filter")
+                .contains("DMIT-US（美国5-电信优化）")
+        );
+        assert!(
+            group("联通优化")["filter"]
+                .as_str()
+                .expect("unicom filter")
+                .contains("AWS-JP(日本1)")
+        );
+        assert!(
+            group("移动优化")["filter"]
+                .as_str()
+                .expect("mobile filter")
+                .contains("AWS-JP(日本1)")
+        );
+        assert!(groups.iter().all(|group| {
+            group["filter"]
+                .as_str()
+                .is_none_or(|filter| !filter.contains("unclassified"))
+        }));
+        assert_eq!(
+            config["rules"].as_sequence().expect("rules").last(),
+            Some(&Value::String("MATCH,电信优化".into()))
+        );
+    }
+
+    #[test]
     fn published_categories_override_legacy_local_classifications() {
         let mut config = serde_yaml_ng::from_str::<Value>(
             "proxies:\n  - name: HK-01\n    type: vmess\nproxy-groups: []\nrules:\n  - MATCH,Proxy\n",

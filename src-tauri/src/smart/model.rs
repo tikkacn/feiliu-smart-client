@@ -146,6 +146,10 @@ pub struct SmartRouteConfig {
     /// the persisted choice remains the stable default for MATCH routing.
     #[serde(default)]
     pub preferred_operator: NetworkOperator,
+    /// Distinguishes an explicit `Other` choice from a fresh installation
+    /// whose default operator is also `Unknown`.
+    #[serde(default)]
+    pub operator_confirmed: bool,
     #[serde(default = "default_builtin_rules")]
     pub use_builtin_rules: bool,
     #[serde(default)]
@@ -160,6 +164,7 @@ impl Default for SmartRouteConfig {
             remote_manifest_version: None,
             remote_manifest_updated_at: None,
             preferred_operator: NetworkOperator::Unknown,
+            operator_confirmed: false,
             use_builtin_rules: true,
             custom_rules: Vec::new(),
         }

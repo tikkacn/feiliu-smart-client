@@ -8,24 +8,41 @@ use super::model::{LineCategory, RemoteClassificationManifest};
 
 pub const CLASSIFICATION_MANIFEST_URL: &str = "https://jiedian.328671.xyz/manifest.php";
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
-const MANIFEST_TIMEOUT_SECONDS: u64 = 8;
+const MANIFEST_TIMEOUT_SECONDS: u64 = 4;
 
 pub async fn fetch_manifest() -> Result<RemoteClassificationManifest> {
-    // Do not inherit an ambient/system proxy here. The operator prompt can be
-    // shown before Mihomo is ready, and routing this request through a stale
-    // localhost proxy made the dialog wait for the full timeout. The shared
-    // network helper explicitly applies `no_proxy()` for `ProxyType::None`
-    // and retains the application's platform TLS fallback.
-    let response = NetworkManager::new()
-        .get_with_interrupt(
+    let network = NetworkManager::new();
+    let user_agent = Some("Feiliu-Smart-Client/line-classification".into());
+
+    // The Windows platform certificate verifier can block during application
+    // startup even though the same URL opens immediately in the browser. Use
+    // the bundled WebPKI roots for this application-owned endpoint. If the
+    // direct path is unavailable after Mihomo starts, retry through its local
+    // proxy so TUN, DNS and unusual local routing setups are also covered.
+    let response = match network
+        .get_with_static_webpki_roots(
             CLASSIFICATION_MANIFEST_URL,
             ProxyType::None,
             Some(MANIFEST_TIMEOUT_SECONDS),
-            Some("Feiliu-Smart-Client/line-classification".into()),
+            user_agent.clone(),
             false,
         )
         .await
-        .context("failed to request line classification service")?;
+    {
+        Ok(response) => response,
+        Err(direct_error) => network
+            .get_with_static_webpki_roots(
+                CLASSIFICATION_MANIFEST_URL,
+                ProxyType::Localhost,
+                Some(MANIFEST_TIMEOUT_SECONDS),
+                user_agent,
+                false,
+            )
+            .await
+            .with_context(|| {
+                format!("direct classification request failed ({direct_error:#}); local proxy fallback failed")
+            })?,
+    };
 
     let status = response.status();
     if !status.is_success() {

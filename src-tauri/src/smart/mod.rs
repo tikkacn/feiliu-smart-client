@@ -14,7 +14,7 @@ use crate::{
     feat,
 };
 
-use self::model::{NetworkOperator, SmartClassificationSyncResult, SmartNetworkState};
+use self::model::{NetworkOperator, RemoteClassificationManifest, SmartClassificationSyncResult, SmartNetworkState};
 
 static NETWORK_STATE: OnceLock<RwLock<SmartNetworkState>> = OnceLock::new();
 static SMART_ROUTE_WRITE: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
@@ -68,6 +68,16 @@ pub fn current_network() -> SmartNetworkState {
 /// rule settings.
 pub async fn refresh_remote_classifications() -> Result<SmartClassificationSyncResult> {
     let manifest = remote::fetch_manifest().await?;
+    persist_remote_classifications(manifest).await
+}
+
+/// Validates and persists a manifest supplied by another trusted application
+/// transport, such as the WebView fallback used on Windows. The backend stays
+/// authoritative for schema validation and configuration writes.
+pub async fn persist_remote_classifications(
+    manifest: RemoteClassificationManifest,
+) -> Result<SmartClassificationSyncResult> {
+    remote::validate_manifest(&manifest)?;
     let categories = remote::classification_map(&manifest);
     let fetched_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -111,6 +121,21 @@ pub async fn refresh_remote_classifications() -> Result<SmartClassificationSyncR
 /// update transaction.
 pub async fn refresh_remote_classifications_and_apply() -> Result<SmartClassificationSyncResult> {
     let result = Box::pin(refresh_remote_classifications()).await?;
+    apply_persisted_classifications(result).await
+}
+
+/// Persists a caller-supplied manifest and immediately regenerates the active
+/// runtime configuration.
+pub async fn persist_remote_classifications_and_apply(
+    manifest: RemoteClassificationManifest,
+) -> Result<SmartClassificationSyncResult> {
+    let result = Box::pin(persist_remote_classifications(manifest)).await?;
+    apply_persisted_classifications(result).await
+}
+
+async fn apply_persisted_classifications(
+    result: SmartClassificationSyncResult,
+) -> Result<SmartClassificationSyncResult> {
     let outcome = feat::enhance_profiles().await?;
     if !outcome.is_valid() {
         bail!("应用节点分类后的运行配置失败: {outcome}");
@@ -130,11 +155,12 @@ pub async fn persist_preferred_operator(operator: NetworkOperator) -> Result<boo
         .smart_route
         .clone()
         .unwrap_or_default();
-    if smart_route.preferred_operator == operator {
+    if smart_route.preferred_operator == operator && smart_route.operator_confirmed {
         return Ok(false);
     }
 
     smart_route.preferred_operator = operator;
+    smart_route.operator_confirmed = true;
     feat::patch_verge(
         &IVerge {
             smart_route: Some(smart_route),
