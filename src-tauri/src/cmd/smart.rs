@@ -42,6 +42,7 @@ async fn apply_smart_network(
     match feat::enhance_profiles().await {
         Ok(outcome) if outcome.is_valid() => {
             crate::core::handle::Handle::refresh_clash();
+            crate::core::handle::Handle::refresh_proxy_config();
             Ok(outcome)
         }
         Ok(outcome) => {

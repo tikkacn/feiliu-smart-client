@@ -142,6 +142,7 @@ async fn apply_persisted_classifications(
     }
 
     crate::core::handle::Handle::refresh_clash();
+    crate::core::handle::Handle::refresh_proxy_config();
     Ok(result)
 }
 

@@ -210,6 +210,9 @@ export const AppDataProvider = ({
     [proxyView?.records],
   )
   const remoteSyncSignatureRef = useRef<string | null>(null)
+  const classificationSyncInFlightRef = useRef<
+    ReturnType<typeof syncSmartClassificationsWithFallback> | undefined
+  >(undefined)
   const hasVerge = Boolean(verge)
   const preferredOperator =
     verge?.smart_route?.preferredOperator ?? ('unknown' as const)
@@ -232,6 +235,28 @@ export const AppDataProvider = ({
     savedSmartOperatorRef.current = preferredOperator
     operatorConfirmedRef.current = operatorConfirmed
   }, [operatorConfirmed, preferredOperator])
+
+  const synchronizeSmartClassifications = useStableFn(async () => {
+    if (classificationSyncInFlightRef.current) {
+      return classificationSyncInFlightRef.current
+    }
+
+    const pending = (async () => {
+      const result = await syncSmartClassificationsWithFallback()
+      // Runtime regeneration has completed when the command resolves. Refresh
+      // the proxy query now instead of waiting for its 15-second poll.
+      await _refetchProxyView()
+      return result
+    })()
+    classificationSyncInFlightRef.current = pending
+    try {
+      return await pending
+    } finally {
+      if (classificationSyncInFlightRef.current === pending) {
+        classificationSyncInFlightRef.current = undefined
+      }
+    }
+  })
 
   useEffect(() => {
     if (!hasVerge || !proxyNodeSignature) {
@@ -259,7 +284,7 @@ export const AppDataProvider = ({
 
       remoteSyncSignatureRef.current = proxyNodeSignature
       try {
-        await syncSmartClassificationsWithFallback()
+        await synchronizeSmartClassifications()
         retryDelay = 30_000
       } catch (error) {
         remoteSyncSignatureRef.current = null
@@ -280,7 +305,7 @@ export const AppDataProvider = ({
       if (retryTimer !== null) window.clearTimeout(retryTimer)
       window.clearInterval(timer)
     }
-  }, [hasVerge, proxyNodeSignature])
+  }, [hasVerge, proxyNodeSignature, synchronizeSmartClassifications])
 
   useEffect(() => {
     if (!hasVerge || !proxyNodeSignature) return
@@ -470,12 +495,26 @@ export const AppDataProvider = ({
       void revalidateQueries([['getProfiles']])
     }
 
+    const handleProfileUpdateCompleted = () => {
+      // A manual subscription update can replace the complete node set. Apply
+      // the website classifications immediately, without waiting for the
+      // proxy query's periodic poll or requiring an application restart.
+      remoteSyncSignatureRef.current = null
+      void synchronizeSmartClassifications().catch((error) => {
+        console.debug(
+          '[smart-route] post-subscription classification unavailable',
+          error,
+        )
+      })
+    }
+
     return subscribeVergeEvents({
       'profile-changed': handleProfileChanged,
+      'profile-update-completed': handleProfileUpdateCompleted,
       'verge://refresh-profiles': handleRefreshProfiles,
       'verge://refresh-proxy-config': handleRefreshProxy,
     })
-  }, [refreshProxy])
+  }, [refreshProxy, synchronizeSmartClassifications])
 
   const refreshAll = useCallback(async () => {
     await Promise.all([

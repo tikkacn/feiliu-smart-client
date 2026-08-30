@@ -133,7 +133,18 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
 
 #[tauri::command]
 pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResult {
-    match feat::update_profile(&index, option.as_ref(), true, true, true).await {
+    // Manual updates previously emitted no completion event, so the frontend
+    // could only discover freshly imported nodes on its 15-second proxy poll.
+    // Mirror timer updates here and always finish the event pair so listeners
+    // can immediately synchronize classifications and refresh proxy groups.
+    handle::Handle::notify_profile_update_started(&index);
+    let result = feat::update_profile(&index, option.as_ref(), true, true, true).await;
+    if result.is_ok() {
+        handle::Handle::refresh_proxy_config();
+    }
+    handle::Handle::notify_profile_update_completed(&index);
+
+    match result {
         Ok(_) => Ok(()),
         Err(e) => {
             logging!(error, Type::Cmd, "{}", e);
