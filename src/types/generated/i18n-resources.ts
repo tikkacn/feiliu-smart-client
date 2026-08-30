@@ -205,6 +205,7 @@ export interface TranslationResources {
           }
           tabs: {
             connections: string
+            guideDownloads: string
             home: string
             logs: string
             profiles: string

@@ -34,7 +34,9 @@ import { HomeProfileCard } from '@/components/home/home-profile-card'
 import { ProxyTunCard } from '@/components/home/proxy-tun-card'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
-import { entry_lightweight_mode, openWebUrl } from '@/services/cmds'
+import { entry_lightweight_mode } from '@/services/cmds'
+import { showNotice } from '@/services/notice-service'
+import { openExternalUrl } from '@/utils/open-external-url'
 
 const preloadTestCard = () =>
   import('@/components/home/test-card').then((module) => ({
@@ -240,9 +242,9 @@ const HomePage = () => {
     (verge?.home_cards as HomeCardsSettings | undefined) ?? DEFAULT_HOME_CARDS
 
   // 教程与软件下载入口
-  const toGuide = useLockFn(() => {
-    return openWebUrl('https://guide.tikka.cn')
-  })
+  const toGuide = useLockFn(() =>
+    openExternalUrl('https://guide.uutec.net').catch(showNotice.error),
+  )
 
   // 新增：打开设置弹窗
   const openSettings = useCallback(() => {

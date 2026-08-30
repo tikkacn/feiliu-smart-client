@@ -1,7 +1,3 @@
-import type {
-  DraggableAttributes,
-  DraggableSyntheticListeners,
-} from '@dnd-kit/core'
 import {
   alpha,
   ListItem,
@@ -9,29 +5,23 @@ import {
   ListItemIcon,
   ListItemText,
 } from '@mui/material'
-import type { CSSProperties, PointerEvent, ReactNode } from 'react'
-import { useCallback } from 'react'
+import type { ReactNode } from 'react'
 import { useMatch, useNavigate, useResolvedPath } from 'react-router'
 
+import type { SortableItemRenderProps } from '@/components/base/sortable-item'
 import { useVerge } from '@/hooks/use-verge'
-
-interface SortableProps {
-  setNodeRef?: (element: HTMLElement | null) => void
-  attributes?: DraggableAttributes
-  listeners?: DraggableSyntheticListeners
-  style?: CSSProperties
-  isDragging?: boolean
-  disabled?: boolean
-}
+import { showNotice } from '@/services/notice-service'
+import { openExternalUrl } from '@/utils/open-external-url'
 
 interface Props {
   to: string
   children: string
   icon: ReactNode[]
-  sortable?: SortableProps
+  sortable?: SortableItemRenderProps
+  externalUrl?: string
 }
 export const LayoutItem = (props: Props) => {
-  const { to, children, icon, sortable } = props
+  const { to, children, icon, sortable, externalUrl } = props
   const { verge } = useVerge()
   const { menu_icon } = verge ?? {}
   const navCollapsed = verge?.collapse_navbar ?? false
@@ -41,35 +31,17 @@ export const LayoutItem = (props: Props) => {
 
   const effectiveMenuIcon =
     navCollapsed && menu_icon === 'disable' ? 'monochrome' : menu_icon
-
-  const { setNodeRef, attributes, listeners, style, isDragging, disabled } =
-    sortable ?? {}
-
-  const draggable = Boolean(sortable) && !disabled
-  const { onPointerDown, ...otherListeners } = draggable
-    ? (listeners ?? {})
-    : {}
-
-  const handlePointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      onPointerDown?.(event)
-    },
-    [onPointerDown],
-  )
+  const draggable = Boolean(sortable)
 
   return (
     <ListItem
-      ref={setNodeRef}
-      style={style}
-      sx={[
-        { py: 0.5, maxWidth: 250, mx: 'auto', padding: '4px 0px' },
-        isDragging ? { opacity: 0.78 } : {},
-      ]}
+      ref={sortable?.ref}
+      style={sortable?.style}
+      sx={{ py: 0.5, maxWidth: 250, mx: 'auto', padding: '4px 0px' }}
     >
       <ListItemButton
+        ref={sortable?.handleRef}
         selected={!!match}
-        {...(draggable ? (attributes ?? {}) : {})}
-        {...(draggable ? otherListeners : {})}
         sx={[
           {
             borderRadius: 2,
@@ -101,8 +73,13 @@ export const LayoutItem = (props: Props) => {
         ]}
         title={navCollapsed ? children : undefined}
         aria-label={navCollapsed ? children : undefined}
-        onPointerDown={handlePointerDown}
-        onClick={() => navigate(to)}
+        onClick={() => {
+          if (externalUrl) {
+            void openExternalUrl(externalUrl).catch(showNotice.error)
+            return
+          }
+          navigate(to)
+        }}
       >
         {(effectiveMenuIcon === 'monochrome' || !effectiveMenuIcon) && (
           <ListItemIcon

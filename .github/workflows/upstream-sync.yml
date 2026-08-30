@@ -1,0 +1,205 @@
+name: Sync Upstream Stable
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  HUSKY: 0
+
+jobs:
+  sync:
+    name: Merge verified upstream changes
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Find latest upstream stable release
+        id: upstream
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: release } = await github.rest.repos.getLatestRelease({
+              owner: 'clash-verge-rev',
+              repo: 'clash-verge-rev',
+            })
+            if (release.draft || release.prerelease || !/^v\d+\.\d+\.\d+$/.test(release.tag_name)) {
+              throw new Error(`Unsupported upstream stable tag: ${release.tag_name}`)
+            }
+            core.setOutput('tag', release.tag_name)
+
+      - name: Merge upstream stable release
+        id: merge
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/clash-verge-rev/clash-verge-rev.git
+          git fetch --no-tags upstream "refs/tags/${UPSTREAM_TAG}"
+
+          if git merge-base --is-ancestor FETCH_HEAD HEAD; then
+            echo 'result=unchanged' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          set +e
+          git merge --no-edit FETCH_HEAD
+          merge_exit=$?
+          set -e
+          if [ "$merge_exit" -ne 0 ]; then
+            {
+              echo 'conflicts<<EOF'
+              git diff --name-only --diff-filter=U
+              echo 'EOF'
+              echo 'result=conflict'
+            } >> "$GITHUB_OUTPUT"
+            git merge --abort
+            exit 0
+          fi
+
+          echo 'result=merged' >> "$GITHUB_OUTPUT"
+
+      - name: Report merge conflicts
+        if: steps.merge.outputs.result == 'conflict'
+        uses: actions/github-script@v8
+        env:
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+        with:
+          script: |
+            const title = '上游自动同步需要人工处理'
+            const body = [
+              `自动合并上游正式标签 ${process.env.UPSTREAM_TAG} 时发生冲突，未推送任何代码。`,
+              '',
+              '冲突文件：',
+              '```',
+              process.env.CONFLICTS || '(无法取得文件列表)',
+              '```',
+              '',
+              `检查运行：${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n')
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            const existing = issues.find((issue) => issue.title === title)
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              })
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              })
+            }
+
+      - name: Install system dependencies
+        if: steps.merge.outputs.result == 'merged'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust
+        if: steps.merge.outputs.result == 'merged'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.95.0'
+          components: rustfmt
+
+      - name: Install pnpm
+        if: steps.merge.outputs.result == 'merged'
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Install Node.js
+        if: steps.merge.outputs.result == 'merged'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.19.0'
+          cache: pnpm
+
+      - name: Verify merged code and customizations
+        if: steps.merge.outputs.result == 'merged'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm custom:verify
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm workflow:check
+          cargo fmt --manifest-path ./src-tauri/Cargo.toml --all -- --check
+          pnpm run prebuild x86_64-unknown-linux-gnu
+          cargo check --workspace --locked
+
+      - name: Push verified merge
+        if: steps.merge.outputs.result == 'merged'
+        run: git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Release a matching new upstream version
+        if: steps.merge.outputs.result != 'conflict'
+        uses: actions/github-script@v8
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+        with:
+          script: |
+            const fs = require('node:fs')
+            const { execFileSync } = require('node:child_process')
+            const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version
+            const tag = `v${version}`
+            if (tag !== process.env.UPSTREAM_TAG) {
+              core.info(`Local version ${tag} differs from upstream stable ${process.env.UPSTREAM_TAG}; no automatic release.`)
+              return
+            }
+            execFileSync('node', ['scripts/verify-customizations.mjs'], { stdio: 'inherit' })
+            try {
+              await github.rest.git.getRef({ ...context.repo, ref: `tags/${tag}` })
+              core.info(`${tag} already exists; never move or overwrite a release tag.`)
+              return
+            } catch (error) {
+              if (error.status !== 404) throw error
+            }
+            const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+            await github.rest.git.createRef({ ...context.repo, ref: `refs/tags/${tag}`, sha })
+            // GITHUB_TOKEN tag pushes do not trigger push workflows. Dispatch explicitly.
+            await github.rest.actions.createWorkflowDispatch({
+              ...context.repo,
+              workflow_id: 'release.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: { tag },
+            })
+
+      - name: Report failed validation or release dispatch
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.issues.create({
+              ...context.repo,
+              title: '上游同步验证或自动发布失败',
+              body: `自动流程未完成，请检查验证结果或重新运行指定标签的发布工作流。\n\n${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            })

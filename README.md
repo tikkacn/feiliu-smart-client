@@ -28,23 +28,30 @@ A Clash Meta GUI based on <a href="https://github.com/tauri-apps/tauri">Tauri</a
 
 ## Install
 
-请到本项目发布页面下载对应的安装包：[Release page](https://github.com/tikkacn/feiliu-smart-client/releases)<br>
+请优先到[飞流客户端指南](https://guide.uutec.net)下载，网站与客户端手动更新共用自有 Cloudflare 分发渠道。<br>
 Go to this fork's [Release page](https://github.com/tikkacn/feiliu-smart-client/releases) to download the corresponding installation package<br>
-Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
+This fork publishes Windows x64 and macOS 11+ packages for Intel and Apple Silicon.
 
-#### 我应当怎样选择发行版
+#### 备选客户端说明
 
-| 版本        | 特征                                     | 链接                                                                                   |
-| :---------- | :--------------------------------------- | :------------------------------------------------------------------------------------- |
-| Stable      | 正式版，高可靠性，适合日常使用。         | [Release](https://github.com/tikkacn/feiliu-smart-client/releases)                 |
-| Alpha(废弃) | 测试发布流程。                           | [Alpha](https://github.com/tikkacn/feiliu-smart-client/releases/tag/alpha)         |
-| AutoBuild   | 滚动更新版，适合测试反馈，可能存在缺陷。 | [AutoBuild](https://github.com/tikkacn/feiliu-smart-client/releases/tag/autobuild) |
+- Windows x64：仅建议具备一定学习能力和软件配置经验的老手使用。
+- macOS Intel / Apple 芯片：未测试，请谨慎使用。
+- 已安装客户端不会自动检查、下载或安装新版本。点击软件内的手动更新按钮后，通过默认浏览器打开自有下载地址，下载并手动安装。
+- 侧栏“教程/下载”会在默认浏览器打开指南网站。
 
-#### 安装说明和常见问题，请到 [飞流客户端指南](https://guide.tikka.cn) 查看
+#### 上游同步与发布
+
+自动流程每 6 小时检查上游正式版，合并代码并验证飞流定制功能、手动更新限制、前端测试及 Rust 编译。验证通过后才推送；对应的新版本会自动构建 Windows x64、macOS Intel 和 macOS Apple 芯片安装包，三个构建全部成功后才公开发布。
+
+保留定制通过 Git 合并历史与 `pnpm custom:verify` 检查共同实现。发生合并冲突或检查失败时会停止发布并创建 GitHub Issue，需要人工处理；不会强制覆盖定制，也不能保证任意上游重构都能自动解决。开发分支版本超前于上游正式版时，不自动发布或降级。
+
+服务器同步流程见 [部署说明](./deploy/guide.uutec.net/README.md)。
+
+#### 安装说明和常见问题，请到 [飞流客户端指南](https://guide.uutec.net) 查看
 
 ### Telegram 频道
 
-教程、软件下载与使用说明请访问 [飞流客户端指南](https://guide.tikka.cn)。
+教程、软件下载与使用说明请访问 [飞流客户端指南](https://guide.uutec.net)。
 
 ---
 
@@ -64,11 +71,11 @@ Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
 - 可根据本地网络运营商信息调整线路候选顺序；识别失败时仍可使用测速结果完成选线。
 - 只修改运行时配置，不改写原始订阅文件，也不依赖远程管理服务。
 
-教程、软件下载与使用说明见 [飞流客户端指南](https://guide.tikka.cn)。
+教程、软件下载与使用说明见 [飞流客户端指南](https://guide.uutec.net)。
 
 ### FAQ
 
-Refer to the [Feiliu Client Guide](https://guide.tikka.cn) for installation and troubleshooting.
+Refer to the [Feiliu Client Guide](https://guide.uutec.net) for installation and troubleshooting.
 
 ### Donation
 

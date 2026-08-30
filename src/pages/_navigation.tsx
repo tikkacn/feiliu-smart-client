@@ -3,6 +3,7 @@ import ForkRightOutlinedIcon from '@mui/icons-material/ForkRightOutlined'
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined'
 import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined'
+import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import SubjectOutlinedIcon from '@mui/icons-material/SubjectOutlined'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
@@ -33,7 +34,8 @@ type NavigationItem = {
   label: (typeof navigationItems)[keyof typeof navigationItems]['label']
   path: string
   icon: ReactNode[]
-  Component: ComponentType
+  Component?: ComponentType
+  externalUrl?: string
 }
 
 export const navItems: NavigationItem[] = [
@@ -76,6 +78,13 @@ export const navItems: NavigationItem[] = [
     ...navigationItems.unlock,
     icon: [<LockOpenOutlinedIcon key="mui" />, <UnlockSvg key="svg" />],
     Component: UnlockPage,
+  },
+  {
+    ...navigationItems.guideDownloads,
+    icon: [
+      <MenuBookOutlinedIcon key="mui" />,
+      <MenuBookOutlinedIcon key="colorful" />,
+    ],
   },
   {
     ...navigationItems.settings,

@@ -138,7 +138,7 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
     // Mirror timer updates here and always finish the event pair so listeners
     // can immediately synchronize classifications and refresh proxy groups.
     handle::Handle::notify_profile_update_started(&index);
-    let result = feat::update_profile(&index, option.as_ref(), true, true, true).await;
+    let result = feat::update_profile(&index, option.as_ref(), true).await;
     if result.is_ok() {
         handle::Handle::refresh_proxy_config();
     }
@@ -188,7 +188,7 @@ pub async fn delete_profile(index: String) -> CmdResult {
         }
     };
     if should_update {
-        logging_error!(Type::Config, profiles::activate_selected_nodes());
+        profiles::activate_selected_nodes();
     }
     drop(config_update_guard);
     drop(profile_write_guard);
@@ -252,7 +252,7 @@ async fn handle_success(current_value: Option<&String>) -> CmdResult<ValidationO
         .await
         .stringify_err()?;
     // Runtime refresh and tray rebuilding happen after saved node selections are restored.
-    profiles::activate_selected_nodes().stringify_err()?;
+    profiles::activate_selected_nodes();
 
     if let Err(e) = profiles_save_file_safe().await {
         logging!(warn, Type::Cmd, "Warning: 异步保存配置文件失败: {e}");

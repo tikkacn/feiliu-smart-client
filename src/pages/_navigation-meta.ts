@@ -22,6 +22,11 @@ export const navigationItems = {
     label: 'layout.components.navigation.tabs.unlock',
     path: '/unlock',
   },
+  guideDownloads: {
+    label: 'layout.components.navigation.tabs.guideDownloads',
+    path: '/guide-downloads',
+    externalUrl: 'https://guide.uutec.net',
+  },
   settings: {
     label: 'layout.components.navigation.tabs.settings',
     path: '/settings',

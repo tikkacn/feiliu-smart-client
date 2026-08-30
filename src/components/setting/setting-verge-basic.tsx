@@ -187,13 +187,15 @@ const SettingVergeBasic = ({ onError }: Props) => {
           onGuard={(e) => patchVerge({ start_page: e })}
         >
           <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
-            {Object.values(navigationItems).map((page) => {
-              return (
-                <MenuItem key={page.path} value={page.path}>
-                  {t(page.label)}
-                </MenuItem>
-              )
-            })}
+            {Object.values(navigationItems)
+              .filter((page) => !('externalUrl' in page))
+              .map((page) => {
+                return (
+                  <MenuItem key={page.path} value={page.path}>
+                    {t(page.label)}
+                  </MenuItem>
+                )
+              })}
           </Select>
         </GuardState>
       </SettingItem>

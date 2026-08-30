@@ -1,30 +1,28 @@
-import { fetchCacheData, setCacheData, useQuery } from '@/services/query-client'
-import { checkUpdateSafe } from '@/services/update'
-
-import { useVerge } from './use-verge'
+import {
+  fetchCacheData,
+  getCacheData,
+  setCacheData,
+  useQuery,
+} from '@/services/query-client'
+import { checkUpdateSafe, type FeiliuUpdate } from '@/services/update'
 
 const LAST_CHECK_KEY = 'last_check_update'
 
-export const readLastCheckTime = (): number | null => {
+const readLastCheckTime = (): number | null => {
   const stored = localStorage.getItem(LAST_CHECK_KEY)
   if (!stored) return null
   const ts = parseInt(stored, 10)
   return isNaN(ts) ? null : ts
 }
 
-export const updateLastCheckTime = (timestamp?: number): number => {
+const updateLastCheckTime = (timestamp?: number): number => {
   const now = timestamp ?? Date.now()
   localStorage.setItem(LAST_CHECK_KEY, now.toString())
   setCacheData([LAST_CHECK_KEY], now)
   return now
 }
 
-export const useUpdate = (enabled: boolean = true) => {
-  const { verge } = useVerge()
-  const { auto_check_update } = verge || {}
-
-  const shouldCheck = enabled && auto_check_update !== false
-
+export const useUpdate = () => {
   const fetchUpdate = async () => {
     const result = await checkUpdateSafe()
     updateLastCheckTime()
@@ -34,12 +32,15 @@ export const useUpdate = (enabled: boolean = true) => {
   const { data: updateInfo, isFetching: isValidating } = useQuery({
     queryKey: ['checkUpdate'],
     queryFn: fetchUpdate,
-    enabled: shouldCheck,
+    // Keep the query subscribed so a manual check updates every open viewer,
+    // but seed it with null and explicitly suppress all automatic requests.
+    initialData: () =>
+      getCacheData<FeiliuUpdate | null>(['checkUpdate']) ?? null,
+    revalidateOnMount: false,
     retry: 2,
-    staleTime: 60 * 60 * 1000,
-    refetchInterval: 24 * 60 * 60 * 1000,
-    refetchIntervalInBackground: false,
+    refetchInterval: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   const checkUpdate = async () => {
