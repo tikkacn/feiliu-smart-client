@@ -50,7 +50,7 @@ ASSET_SPECS = {
         'title': '飞流 Smart 客户端（macOS Intel 备选）',
         'summary': '适用于 Intel 芯片 Mac 的备选客户端。',
         'platform': 'macOS 11+（Intel 芯片）',
-        'content': '该版本未测试，请谨慎下载使用。客户端不会自动升级，请在软件内手动检查更新。',
+        'content': '该版本未测试，请谨慎下载使用。macOS 可能显示开发者验证或安全提示，请先核实下载来源。客户端不会自动升级，请在软件内手动检查更新。',
         'sort_order': 6,
     },
     'darwin-aarch64': {
@@ -61,7 +61,7 @@ ASSET_SPECS = {
         'title': '飞流 Smart 客户端（macOS Apple 芯片备选）',
         'summary': '适用于 M 系列 Apple 芯片 Mac 的备选客户端。',
         'platform': 'macOS 11+（Apple 芯片）',
-        'content': '该版本未测试，请谨慎下载使用。客户端不会自动升级，请在软件内手动检查更新。',
+        'content': '该版本未测试，请谨慎下载使用。macOS 可能显示开发者验证或安全提示，请先核实下载来源。客户端不会自动升级，请在软件内手动检查更新。',
         'sort_order': 7,
     },
 }
