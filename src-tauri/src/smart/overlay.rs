@@ -298,7 +298,9 @@ mod tests {
         let groups = config["proxy-groups"].as_sequence().expect("groups");
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0]["name"], "全部节点");
-        assert_eq!(config["rules"][0], "MATCH,全部节点");
+        let rules = config["rules"].as_sequence().expect("rules");
+        assert_eq!(rules[0], "GEOSITE,cn,DIRECT");
+        assert_eq!(rules.last(), Some(&Value::String("MATCH,全部节点".into())));
     }
 
     #[test]
@@ -416,24 +418,17 @@ mod tests {
                 .find(|group| group["name"].as_str() == Some(name))
                 .expect("operator group")
         };
-        assert!(
-            group("电信优化")["filter"]
-                .as_str()
-                .expect("telecom filter")
-                .contains("DMIT-US（美国5-电信优化）")
-        );
-        assert!(
-            group("联通优化")["filter"]
-                .as_str()
-                .expect("unicom filter")
-                .contains("AWS-JP(日本1)")
-        );
-        assert!(
-            group("移动优化")["filter"]
-                .as_str()
-                .expect("mobile filter")
-                .contains("AWS-JP(日本1)")
-        );
+        let matches_node = |group_name: &str, node_name: &str| {
+            regex::Regex::new(group(group_name)["filter"].as_str().expect("operator filter"))
+                .expect("valid node regex")
+                .is_match(node_name)
+        };
+        assert!(matches_node("电信优化", "DMIT-US（美国5-电信优化）"));
+        assert!(matches_node("联通优化", "AWS-JP(日本1)"));
+        assert!(matches_node("移动优化", "aws-jp(日本1)"));
+        assert!(!matches_node("电信优化", "AWS-JP(日本1)"));
+        assert!(!matches_node("联通优化", "AWS-JP日本1"));
+        assert!(!matches_node("移动优化", "unclassified"));
         assert!(groups.iter().all(|group| {
             group["filter"]
                 .as_str()
