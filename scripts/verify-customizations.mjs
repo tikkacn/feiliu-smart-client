@@ -29,6 +29,10 @@ const forbiddenContent = [
   ['package.json', '@tauri-apps/plugin-updater'],
   ['src-tauri/src/lib.rs', 'tauri_plugin_updater'],
   ['src-tauri/src/utils/resolve/mod.rs', 'init_silent_updater'],
+  ['src-tauri/capabilities/desktop.json', 'updater:'],
+  ['src-tauri/capabilities/migrated.json', 'updater:'],
+  ['src-tauri/src/feat/profile.rs', 'is_current_profile_index'],
+  ['src-tauri/src/smart/remote.rs', 'text_with_charset'],
 ]
 
 const failures = []
