@@ -126,7 +126,7 @@ async fn perform_profile_update(
     let mut merged_opt = PrfOption::merge(opt, option);
     let is_current = {
         let profiles = Config::profiles().await;
-        profiles.latest_arc().is_current_profile_index(uid)
+        profiles.latest_arc().current.as_ref() == Some(uid)
     };
     let profiles = Config::profiles().await;
     let profiles_arc = profiles.latest_arc();

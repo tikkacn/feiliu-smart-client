@@ -49,12 +49,8 @@ pub async fn fetch_manifest() -> Result<RemoteClassificationManifest> {
         bail!("line classification service returned HTTP {status}");
     }
 
-    let manifest = serde_json::from_str::<RemoteClassificationManifest>(
-        response
-            .text_with_charset()
-            .context("failed to read line classification response")?,
-    )
-    .context("invalid line classification response")?;
+    let manifest = serde_json::from_str::<RemoteClassificationManifest>(response.text())
+        .context("invalid line classification response")?;
     validate_manifest(&manifest)?;
     Ok(manifest)
 }
