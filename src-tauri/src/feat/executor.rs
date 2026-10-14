@@ -159,7 +159,7 @@ pub(super) async fn apply(config_write: &MutexGuard<'_, ()>, patch: Patch<'_>, e
     }
     transaction.commit();
     match patch {
-        Patch::Verge { patch, .. } => {
+        Patch::Verge { .. } => {
             if effects.contains(&Effect::ClashConfig) {
                 announce(Refresh::Clash);
             }

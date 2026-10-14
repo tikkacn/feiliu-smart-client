@@ -1,7 +1,7 @@
 use super::{CmdResult, StringifyErr as _, WithErrorCode as _, coded_error};
 use crate::cmd::validate::{ValidationNoticeTarget, handle_validation_notice};
 use crate::config::profiles;
-use crate::core::notify::NoticeStatus;
+use crate::core::notify::{NoticeStatus, Refresh, announce};
 use crate::utils::window_manager::WindowManager;
 use crate::{
     config::{
@@ -139,7 +139,7 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
     handle::Handle::notify_profile_update_started(&index);
     let result = feat::update_profile(&index, option.as_ref(), true).await;
     if result.is_ok() {
-        handle::Handle::refresh_proxy_config();
+        announce(Refresh::Proxies);
     }
     handle::Handle::notify_profile_update_completed(&index);
 
