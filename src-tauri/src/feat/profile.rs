@@ -1,5 +1,5 @@
-use std::{future::Future, pin::Pin};
-
+use crate::core::notify::NoticeStatus;
+use crate::core::notify::{Refresh, announce};
 use crate::{
     cmd,
     config::{Config, PrfItem, PrfOption, profiles::profiles_update_item_safe},
@@ -12,10 +12,13 @@ use smartstring::alias::String;
 
 /// Toggle proxy profile
 pub async fn toggle_proxy_profile(profile_index: String) {
-    logging_error!(
-        Type::Config,
-        cmd::patch_profiles_config_by_profile_index(profile_index).await
-    );
+    if let Err(err) = cmd::patch_profiles_config_by_profile_index(profile_index.clone()).await {
+        logging!(
+            error,
+            Type::Config,
+            "toggle proxy profile {profile_index} failed: {err}"
+        );
+    }
 }
 
 /// Tell the profile which node this group is on now.
@@ -27,7 +30,7 @@ async fn record_switched_node(group_name: &str, proxy_name: &str) {
     if let Err(error) = crate::config::profiles::record_selected_node(group_name, proxy_name).await {
         logging!(
             warn,
-            Type::Tray,
+            Type::Config,
             "切换代理成功但未能记录到配置: {} -> {}, 错误: {error:#}",
             group_name,
             proxy_name
@@ -41,21 +44,13 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
         .await
     {
         Ok(_) => {
-            logging!(info, Type::Tray, "切换代理成功: {} -> {}", group_name, proxy_name);
             record_switched_node(group_name, proxy_name).await;
-            handle::Handle::refresh_proxy_config();
+            announce(Refresh::Proxies);
             let _ = tray::Tray::global().update_menu().await;
             return;
         }
         Err(err) => {
-            logging!(
-                error,
-                Type::Tray,
-                "切换代理失败: {} -> {}, 错误: {:?}",
-                group_name,
-                proxy_name,
-                err
-            );
+            logging!(error, Type::Tray, "切换代理失败: {err:?}");
         }
     }
 
@@ -69,14 +64,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
             let _ = tray::Tray::global().update_menu().await;
         }
         Err(err) => {
-            logging!(
-                error,
-                Type::Tray,
-                "代理切换最终失败: {} -> {}, 错误: {:?}",
-                group_name,
-                proxy_name,
-                err
-            );
+            logging!(error, Type::Tray, "代理切换最终失败: {err:?}");
         }
     }
 }
@@ -88,20 +76,19 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
     let is_remote = item.itype.as_ref().is_some_and(|s| s == "remote");
 
     if !is_remote {
-        logging!(info, Type::Config, "[订阅更新] {uid} 不是远程订阅，跳过更新");
+        logging!(info, Type::Config, "[订阅更新] 不是远程订阅，跳过更新");
         Ok(None)
     } else if item.url.is_none() {
-        logging!(warn, Type::Config, "Warning: [订阅更新] {uid} 缺少URL，无法更新");
+        logging!(warn, Type::Config, "[订阅更新] 缺少URL，无法更新");
         bail!("failed to get the profile item url");
     } else if !ignore_auto_update && !item.option.as_ref().and_then(|o| o.allow_auto_update).unwrap_or(true) {
-        logging!(info, Type::Config, "[订阅更新] {} 禁止自动更新，跳过更新", uid);
+        logging!(info, Type::Config, "[订阅更新] 禁止自动更新，跳过更新");
         Ok(None)
     } else {
         logging!(
             info,
             Type::Config,
-            "[订阅更新] {} 是远程订阅，URL: {}",
-            uid,
+            "[订阅更新] 远程订阅，URL: {}",
             mask_url(
                 item.url
                     .as_ref()
@@ -115,6 +102,7 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
     }
 }
 
+#[tracing::instrument(skip_all, level = "info", fields(uid = %uid, strategy = tracing::field::Empty, configured_elapsed = tracing::field::Empty, clash_elapsed = tracing::field::Empty, system_elapsed = tracing::field::Empty))]
 async fn perform_profile_update(
     uid: &String,
     url: &String,
@@ -123,7 +111,7 @@ async fn perform_profile_update(
     is_mannual_trigger: bool,
 ) -> Result<()> {
     logging!(info, Type::Config, "[订阅更新] 开始下载新的订阅内容");
-    let mut merged_opt = PrfOption::merge(opt, option);
+    let merged_opt = PrfOption::merge(opt, option);
     let is_current = {
         let profiles = Config::profiles().await;
         profiles.latest_arc().current.as_ref() == Some(uid)
@@ -136,69 +124,83 @@ async fn perform_profile_update(
         .and_then(|item| item.name.clone())
         .unwrap_or_else(|| String::from("UnKnown Profile"));
 
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
-        Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 更新订阅配置成功");
-            profiles_update_item_safe(uid, &mut item).await?;
-            refresh_smart_classifications_after_update(is_current).await;
-            return Ok(());
-        }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [订阅更新] 正常更新失败: {}，尝试使用Clash代理更新",
-                mask_err(&err.to_string())
-            );
-        }
+    #[derive(Clone, Copy)]
+    enum Strategy {
+        Configured,
+        Clash,
+        System,
     }
 
-    merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(true);
-    merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(false);
-
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
-        Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 使用 Clash代理 更新订阅配置成功");
+    let result =
+        crate::utils::retry::try_strategies(Strategy::Configured, [Strategy::Clash, Strategy::System], |strategy| {
+            let mut options = merged_opt.clone();
+            async move {
+                let (name, success, failure) = match strategy {
+                    Strategy::Configured => (
+                        "configured",
+                        "[订阅更新] 更新订阅配置成功",
+                        "[订阅更新] 直接更新失败: {}，尝试使用Clash代理更新",
+                    ),
+                    Strategy::Clash => (
+                        "clash",
+                        "[订阅更新] 使用 Clash代理 更新订阅配置成功",
+                        "[订阅更新] Clash代理更新失败: {}，尝试使用系统代理更新",
+                    ),
+                    Strategy::System => (
+                        "system",
+                        "[订阅更新] 使用 系统代理 更新订阅配置成功",
+                        "[订阅更新] 系统代理更新失败: {}，所有重试均已失败",
+                    ),
+                };
+                match strategy {
+                    Strategy::Configured => {}
+                    Strategy::Clash | Strategy::System => {
+                        let option = options.get_or_insert_with(PrfOption::default);
+                        option.self_proxy = Some(matches!(strategy, Strategy::Clash));
+                        option.with_proxy = Some(matches!(strategy, Strategy::System));
+                    }
+                }
+                tracing::Span::current().record("strategy", name);
+                let started = std::time::Instant::now();
+                let result = PrfItem::from_url(url, None, None, options.as_ref()).await;
+                let elapsed_field = match strategy {
+                    Strategy::Configured => "configured_elapsed",
+                    Strategy::Clash => "clash_elapsed",
+                    Strategy::System => "system_elapsed",
+                };
+                tracing::Span::current().record(elapsed_field, tracing::field::debug(started.elapsed()));
+                match &result {
+                    Ok(_) => logging!(info, Type::Config, "{success}"),
+                    Err(error) => logging!(
+                        warn,
+                        Type::Config,
+                        "{}",
+                        failure.replace("{}", &mask_err(&format!("{error:#}")))
+                    ),
+                }
+                result
+            }
+        })
+        .await;
+    let last_err = match result {
+        Ok((strategy, mut item)) => {
+            // A persistence error must not replay a successful download with another transport.
             profiles_update_item_safe(uid, &mut item).await?;
             refresh_smart_classifications_after_update(is_current).await;
-            handle::Handle::notice_message("update_with_clash_proxy", profile_name);
+            if !matches!(strategy, Strategy::Configured) {
+                handle::Handle::notice(NoticeStatus::UpdateWithClashProxy, profile_name.as_str());
+            }
             return Ok(());
         }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [订阅更新] Clash代理更新失败: {}，尝试使用系统代理更新",
-                mask_err(&err.to_string())
-            );
-        }
-    }
-
-    merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(false);
-    merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(true);
-
-    let last_err = match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
-        Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 使用 系统代理 更新订阅配置成功");
-            profiles_update_item_safe(uid, &mut item).await?;
-            refresh_smart_classifications_after_update(is_current).await;
-            handle::Handle::notice_message("update_with_clash_proxy", profile_name);
-            return Ok(());
-        }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [订阅更新] 系统代理更新失败: {}，所有重试均已失败",
-                mask_err(&err.to_string())
-            );
-            err
-        }
+        Err(error) => error,
     };
 
     let last_err = mask_err(&last_err.to_string());
     if is_mannual_trigger {
-        handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
+        handle::Handle::notice(
+            NoticeStatus::UpdateFailedEvenWithClash,
+            format!("{profile_name} - {last_err}"),
+        );
     }
     bail!(last_err)
 }
@@ -207,31 +209,29 @@ async fn perform_profile_update(
 /// but do not make an otherwise successful subscription update fail when the
 /// optional management site is temporarily unavailable. Keeping the last
 /// successful catalog is safer than clearing it and generating 全部节点.
-fn refresh_smart_classifications_after_update(is_current: bool) -> Pin<Box<dyn Future<Output = ()> + Send>> {
-    Box::pin(async move {
-        if !is_current {
-            return;
-        }
+async fn refresh_smart_classifications_after_update(is_current: bool) {
+    if !is_current {
+        return;
+    }
 
-        match crate::smart::refresh_remote_classifications().await {
-            Ok(result) => logging!(
-                info,
-                Type::Config,
-                "[订阅更新] 节点分类已同步: v{}, {}条",
-                result.version,
-                result.categories
-            ),
-            Err(error) => logging!(
-                warn,
-                Type::Config,
-                "[订阅更新] 节点分类同步失败，保留上次分类结果: {error:#}"
-            ),
-        }
-    })
+    match crate::smart::refresh_remote_classifications().await {
+        Ok(result) => logging!(
+            info,
+            Type::Config,
+            "[订阅更新] 节点分类已同步: v{}, {}条",
+            result.version,
+            result.categories
+        ),
+        Err(error) => logging!(
+            warn,
+            Type::Config,
+            "[订阅更新] 节点分类同步失败，保留上次分类结果: {error:#}"
+        ),
+    }
 }
 
+#[tracing::instrument(skip_all, level = "info", fields(uid = %uid, manual = is_mannual_trigger))]
 pub async fn update_profile(uid: &String, option: Option<&PrfOption>, is_mannual_trigger: bool) -> Result<()> {
-    logging!(info, Type::Config, "[订阅更新] 开始更新订阅 {}", uid);
     let url_opt = should_update_profile(uid, is_mannual_trigger).await?;
 
     let profile_persisted = match url_opt {
@@ -246,11 +246,11 @@ pub async fn update_profile(uid: &String, option: Option<&PrfOption>, is_mannual
     let should_refresh = is_current || (!profile_persisted && is_mannual_trigger);
 
     if should_refresh {
-        logging!(info, Type::Config, "[订阅更新] 更新内核配置");
+        logging!(debug, Type::Config, "[订阅更新] 更新内核配置");
         match CoreManager::global().update_config_with_force(is_mannual_trigger).await {
             Ok(outcome) if outcome.is_valid() => {
-                logging!(info, Type::Config, "[订阅更新] 更新成功");
-                handle::Handle::refresh_clash();
+                logging_error!(Type::Config, Config::sync_dns_override().await);
+                announce(Refresh::Clash);
             }
             Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
                 logging!(info, Type::Config, "[订阅更新] 本次配置刷新已跳过: {}", outcome);
@@ -267,7 +267,7 @@ pub async fn update_profile(uid: &String, option: Option<&PrfOption>, is_mannual
                     message
                 };
                 logging!(error, Type::Config, "[订阅更新] 更新失败: {}", message);
-                handle::Handle::notice_message("update_failed", &message);
+                handle::Handle::notice(NoticeStatus::UpdateFailed, message.as_str());
                 bail!(message);
             }
         }
@@ -278,5 +278,9 @@ pub async fn update_profile(uid: &String, option: Option<&PrfOption>, is_mannual
 
 /// 增强配置
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {
-    CoreManager::global().update_config_forced().await
+    let outcome = CoreManager::global().update_config_forced().await?;
+    if outcome.is_valid() {
+        logging_error!(Type::Config, Config::sync_dns_override().await);
+    }
+    Ok(outcome)
 }

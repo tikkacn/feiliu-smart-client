@@ -19,21 +19,18 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { useClashInfo, useRuntimeConfig } from '@/hooks/use-clash'
-import { runStateQueryKey } from '@/hooks/use-system-state'
 import { useVerge } from '@/hooks/use-verge'
 import { getIpInfo } from '@/services/api'
 import {
   applySmartClassificationManifest,
-  getAppUptime,
   getProxyView,
-  getRuntimeState,
   getSystemProxy,
   setSmartNetwork,
   syncSmartClassifications,
 } from '@/services/cmds'
-import { subscribeVergeEvents } from '@/services/events'
 import { showNotice } from '@/services/notice-service'
-import { revalidateQueries, useQuery } from '@/services/query-client'
+import { useQuery } from '@/services/query-client'
+import { useRunState } from '@/store/app-store-context'
 import {
   classifySmartOperator,
   decideSmartOperatorPrompt,
@@ -49,7 +46,6 @@ import {
   RefreshersContext,
   RulesContext,
   SystemContext,
-  UptimeContext,
 } from './app-data-context'
 
 const TQ_MIHOMO = {
@@ -184,12 +180,9 @@ export const AppDataProvider = ({
     ...TQ_DEFAULTS,
   })
 
-  // Same key as `useSystemState`, so this is the one Run State cache entry, not a second one.
-  const { data: runState, isPending: isRunningModePending } = useQuery({
-    queryKey: runStateQueryKey,
-    queryFn: getRuntimeState,
-    ...TQ_DEFAULTS,
-  })
+  // Store-owned run state; the event bus and the store's safety net write it.
+  const runState = useRunState()
+  const isRunningModePending = runState == null
   const runningMode = runState?.mode
 
   const proxyNodeSignature = useMemo(
@@ -452,69 +445,11 @@ export const AppDataProvider = ({
     }
   }, [applySmartNetwork, smartNetworkPrompt])
 
-  const { data: uptimeData } = useQuery({
-    queryKey: ['appUptime'],
-    queryFn: getAppUptime,
-    ...TQ_DEFAULTS,
-    refetchInterval: 3000,
-    retry: 1,
-  })
-
   const refreshProxy = useStableFn(_refetchProxyView)
   const refreshClashConfig = useStableFn(_refetchClashConfig)
   const refreshRules = useStableFn(_refetchRules)
   const refreshSysproxy = useStableFn(_refetchSysproxy)
   const refreshRuleProviders = useStableFn(_refetchRuleProviders)
-
-  useEffect(() => {
-    let lastProfileId: string | null = null
-    let lastProfileUpdateTime = 0
-    let lastProxyUpdateTime = 0
-    const refreshThrottle = 800
-    const handleProfileChanged = (newProfileId: string) => {
-      const now = Date.now()
-      if (
-        lastProfileId === newProfileId &&
-        now - lastProfileUpdateTime < refreshThrottle
-      ) {
-        return
-      }
-      lastProfileId = newProfileId
-      lastProfileUpdateTime = now
-      void revalidateQueries([['getProfiles']])
-    }
-
-    const handleRefreshProxy = () => {
-      const now = Date.now()
-      if (now - lastProxyUpdateTime <= refreshThrottle) return
-      lastProxyUpdateTime = now
-      refreshProxy().catch(() => {})
-    }
-
-    const handleRefreshProfiles = () => {
-      void revalidateQueries([['getProfiles']])
-    }
-
-    const handleProfileUpdateCompleted = () => {
-      // A manual subscription update can replace the complete node set. Apply
-      // the website classifications immediately, without waiting for the
-      // proxy query's periodic poll or requiring an application restart.
-      remoteSyncSignatureRef.current = null
-      void synchronizeSmartClassifications().catch((error) => {
-        console.debug(
-          '[smart-route] post-subscription classification unavailable',
-          error,
-        )
-      })
-    }
-
-    return subscribeVergeEvents({
-      'profile-changed': handleProfileChanged,
-      'profile-update-completed': handleProfileUpdateCompleted,
-      'verge://refresh-profiles': handleRefreshProfiles,
-      'verge://refresh-proxy-config': handleRefreshProxy,
-    })
-  }, [refreshProxy, synchronizeSmartClassifications])
 
   const refreshAll = useCallback(async () => {
     await Promise.all([
@@ -601,8 +536,6 @@ export const AppDataProvider = ({
     }
   }, [sysproxy, runningMode, isRunningModePending, verge, displayedMixedPort])
 
-  const uptimeValue = useMemo(() => ({ uptime: uptimeData || 0 }), [uptimeData])
-
   const coreDataStatusValue = useMemo(
     () => ({
       isCoreDataPending: isProxyViewPending || isClashConfigPending,
@@ -635,13 +568,11 @@ export const AppDataProvider = ({
         <RulesContext value={rulesValue}>
           <ClashConfigContext value={clashConfigValue}>
             <SystemContext value={systemValue}>
-              <UptimeContext value={uptimeValue}>
-                <CoreDataStatusContext value={coreDataStatusValue}>
-                  <RefreshersContext value={refreshersValue}>
-                    {children}
-                  </RefreshersContext>
-                </CoreDataStatusContext>
-              </UptimeContext>
+              <CoreDataStatusContext value={coreDataStatusValue}>
+                <RefreshersContext value={refreshersValue}>
+                  {children}
+                </RefreshersContext>
+              </CoreDataStatusContext>
             </SystemContext>
           </ClashConfigContext>
         </RulesContext>

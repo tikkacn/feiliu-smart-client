@@ -4,15 +4,4 @@ const [ThemeModeProvider, useThemeMode, useSetThemeMode] = createContextState<
   'light' | 'dark'
 >()
 
-// save the state of each profile item loading
-const [LoadingCacheProvider, useLoadingCache, useSetLoadingCache] =
-  createContextState<Set<string>>(new Set())
-
-export {
-  ThemeModeProvider,
-  useThemeMode,
-  useSetThemeMode,
-  LoadingCacheProvider,
-  useLoadingCache,
-  useSetLoadingCache,
-}
+export { ThemeModeProvider, useThemeMode, useSetThemeMode }

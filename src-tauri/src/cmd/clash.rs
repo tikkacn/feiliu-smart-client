@@ -1,4 +1,5 @@
 use super::{CmdResult, CommandFailure, WithErrorCode as _, proxy_aware_coded_error, proxy_aware_error};
+use crate::core::notify::NoticeStatus;
 use crate::feat;
 use crate::utils::{dirs, yaml_emitter};
 use crate::{
@@ -11,7 +12,6 @@ use crate::{
     },
 };
 use clash_verge_logging::{Type, logging, logging_error};
-use compact_str::CompactString;
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use tokio::fs;
@@ -57,16 +57,15 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<CommandFa
 
             match CoreManager::global().restart_core().await {
                 Ok(_) => {
-                    logging!(info, Type::Core, "core changed and restarted to {clash_core}");
-                    handle::Handle::notice_message("config_core::change_success", clash_core);
+                    handle::Handle::notice(NoticeStatus::ConfigCoreChangeSuccess, clash_core.as_str());
                     handle::Handle::refresh_clash();
                     Ok(None)
                 }
                 Err(err) => {
                     let failed = err.context("core changed but failed to restart");
                     let error_msg: String = format!("{failed:#}").into();
-                    handle::Handle::notice_message("config_core::change_error", error_msg.clone());
-                    logging!(error, Type::Core, "{error_msg}");
+                    handle::Handle::notice(NoticeStatus::ConfigCoreChangeError, error_msg.as_str());
+                    logging!(error, Type::Core, "core changed but failed to restart: {error_msg}");
                     Ok(Some(proxy_aware_coded_error(&failed, "CORE_CHANGE_FAILED")))
                 }
             }
@@ -74,35 +73,10 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<CommandFa
         Err(err) => {
             let error_msg: String = format!("{err:#}").into();
             logging!(error, Type::Core, "failed to change core: {error_msg}");
-            handle::Handle::notice_message("config_core::change_error", error_msg);
+            handle::Handle::notice(NoticeStatus::ConfigCoreChangeError, error_msg.as_str());
             Ok(Some(proxy_aware_coded_error(&err, "CORE_CHANGE_FAILED")))
         }
     }
-}
-
-#[tauri::command]
-pub async fn start_core() -> CmdResult {
-    let result = CoreManager::global()
-        .start_core()
-        .await
-        .map_err(|error| proxy_aware_coded_error(&error, "CORE_START_FAILED"));
-    if result.is_ok() {
-        handle::Handle::refresh_clash();
-    }
-    result
-}
-
-#[tauri::command]
-pub async fn stop_core() -> CmdResult {
-    logging_error!(Type::Core, profiles_save_file_safe().await);
-    let result = CoreManager::global()
-        .stop_core()
-        .await
-        .map_err(|error| proxy_aware_coded_error(&error, "CORE_STOP_FAILED"));
-    if result.is_ok() {
-        handle::Handle::refresh_clash();
-    }
-    result
 }
 
 #[tauri::command]
@@ -133,7 +107,7 @@ pub async fn test_delay(url: String) -> CmdResult<u32> {
     let result = match feat::test_delay(url).await {
         Ok(delay) => delay,
         Err(e) => {
-            logging!(error, Type::Cmd, "{}", e);
+            logging!(error, Type::Cmd, "get clash delay failed: {e:#}");
             10000u32
         }
     };
@@ -155,24 +129,48 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult {
 }
 
 #[tauri::command]
+pub fn take_dns_override_notice() -> bool {
+    crate::config::dns::take_dns_override_notice()
+}
+
+#[tauri::command]
+pub async fn set_dns_override(
+    profile_uid: String,
+    enabled: bool,
+    confirmation: Option<String>,
+) -> CmdResult<feat::DnsOverrideOutcome> {
+    feat::set_dns_override(profile_uid, enabled, confirmation)
+        .await
+        .map_err(|error| proxy_aware_coded_error(&error, "DNS_OVERRIDE_UPDATE_FAILED"))
+}
+
+#[tauri::command]
 pub async fn apply_dns_config(apply: bool) -> CmdResult {
     if apply {
         let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
 
         if !dns_path.exists() {
-            logging!(warn, Type::Config, "DNS config file not found");
+            logging!(warn, Type::Config, "DNS config file not found: {}", dns_path.display());
             return Err("DNS config file not found".into());
         }
 
         let dns_yaml = fs::read_to_string(&dns_path).await.stringify_err_log(|e| {
-            logging!(error, Type::Config, "Failed to read DNS config: {e}");
+            logging!(
+                error,
+                Type::Config,
+                "Failed to read DNS config {}: {e}",
+                dns_path.display()
+            );
         })?;
 
         let patch_config = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&dns_yaml).stringify_err_log(|e| {
-            logging!(error, Type::Config, "Failed to parse DNS config: {e}");
+            logging!(
+                error,
+                Type::Config,
+                "Failed to parse DNS config {}: {e}",
+                dns_path.display()
+            );
         })?;
-
-        logging!(info, Type::Config, "Applying DNS config from file");
 
         let mut patch = serde_yaml_ng::Mapping::new();
         patch.insert("dns".into(), patch_config.into());
@@ -198,6 +196,7 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
         logging!(info, Type::Config, "Config regenerated successfully");
     }
 
+    logging_error!(Type::Config, Config::sync_dns_override().await);
     handle::Handle::refresh_clash();
     Ok(())
 }
@@ -226,13 +225,14 @@ pub async fn validate_dns_config() -> CmdResult<ValidationOutcome> {
         return Ok(ValidationOutcome::invalid_from_message("DNS config file not found"));
     }
 
-    CoreConfigValidator::validate_config_file_outcome(dns_path_str, None)
+    // A fragment, not a runnable config; the merged result is validated on apply.
+    CoreConfigValidator::validate_config_file_outcome(dns_path_str, Some(true))
         .await
         .stringify_err()
 }
 
 #[tauri::command]
-pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
+pub async fn get_clash_logs() -> CmdResult<Vec<std::string::String>> {
     let logs = CoreManager::global().get_clash_logs().await.unwrap_or_default();
     Ok(logs)
 }

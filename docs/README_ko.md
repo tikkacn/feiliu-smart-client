@@ -11,13 +11,14 @@
 
 <p align="center">
   언어:
-  <a href="../README.md">简体中文</a> ·
   <a href="./README_en.md">English</a> ·
   <a href="./README_es.md">Español</a> ·
-  <a href="./README_ru.md">Русский</a> ·
+  <a href="./README_fa.md">فارسی</a> ·
   <a href="./README_ja.md">日本語</a> ·
   <a href="./README_ko.md">한국어</a> ·
-  <a href="./README_fa.md">فارسی</a>
+  <a href="./README_pt.md">Português</a> ·
+  <a href="./README_ru.md">Русский</a> ·
+  <a href="../README.md">简体中文</a>
 </p>
 
 ## 미리보기
@@ -45,7 +46,7 @@ Windows (x64/x86), Linux (x64/arm64), macOS 10.15+ (Intel/Apple)을 지원합니
 
 ### 텔레그램 채널
 
-튜토리얼, 다운로드 및 사용 안내는 [Feiliu 클라이언트 가이드](https://guide.tikka.cn)에서 확인하세요.
+튜토리얼, 다운로드 및 사용 안내는 [Feiliu 클라이언트 가이드](https://guide.uutec.net)에서 확인하세요.
 
 ---
 

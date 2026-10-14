@@ -11,13 +11,14 @@ A Clash Meta GUI based on <a href="https://github.com/tauri-apps/tauri">Tauri</a
 
 <p align="center">
   Languages:
-  <a href="./README.md">简体中文</a> ·
   <a href="./docs/README_en.md">English</a> ·
   <a href="./docs/README_es.md">Español</a> ·
-  <a href="./docs/README_ru.md">Русский</a> ·
+  <a href="./docs/README_fa.md">فارسی</a> ·
   <a href="./docs/README_ja.md">日本語</a> ·
   <a href="./docs/README_ko.md">한국어</a> ·
-  <a href="./docs/README_fa.md">فارسی</a>
+  <a href="./docs/README_pt.md">Português</a> ·
+  <a href="./docs/README_ru.md">Русский</a> ·
+  <a href="./README.md">简体中文</a>
 </p>
 
 ## Preview
@@ -113,6 +114,13 @@ Clash Verge rev was based on or inspired by these projects and so on:
 - [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo): A rule-based tunnel in Go.
 - [Fndroid/clash_for_windows_pkg](https://github.com/Fndroid/clash_for_windows_pkg): A Windows/macOS GUI based on Clash.
 - [vitejs/vite](https://github.com/vitejs/vite): Next generation frontend tooling. It's fast!
+
+## Privacy
+
+Clash Verge Rev 不收集任何用户数据，配置与日志仅保存在本地。详见[隐私政策](./PRIVACY.md)。
+
+Clash Verge Rev does not collect any user data; configuration and logs stay on
+your own device. See the [Privacy Policy](./PRIVACY.md) for details.
 
 ## License
 

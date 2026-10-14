@@ -1,10 +1,5 @@
-import {
-  fetchCacheData,
-  getCacheData,
-  setCacheData,
-  useQuery,
-} from '@/services/query-client'
-import { checkUpdateSafe, type FeiliuUpdate } from '@/services/update'
+import { fetchCacheData, setCacheData, useQuery } from '@/services/query-client'
+import { checkUpdateSafe } from '@/services/update'
 
 const LAST_CHECK_KEY = 'last_check_update'
 
@@ -34,8 +29,7 @@ export const useUpdate = () => {
     queryFn: fetchUpdate,
     // Keep the query subscribed so a manual check updates every open viewer,
     // but seed it with null and explicitly suppress all automatic requests.
-    initialData: () =>
-      getCacheData<FeiliuUpdate | null>(['checkUpdate']) ?? null,
+    initialData: null,
     revalidateOnMount: false,
     retry: 2,
     refetchInterval: false,

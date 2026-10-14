@@ -11,13 +11,14 @@
 
 <p align="center">
   زبان‌ها:
-  <a href="../README.md">简体中文</a> ·
   <a href="./README_en.md">English</a> ·
   <a href="./README_es.md">Español</a> ·
-  <a href="./README_ru.md">Русский</a> ·
+  <a href="./README_fa.md">فارسی</a> ·
   <a href="./README_ja.md">日本語</a> ·
   <a href="./README_ko.md">한국어</a> ·
-  <a href="./README_fa.md">فارسی</a>
+  <a href="./README_pt.md">Português</a> ·
+  <a href="./README_ru.md">Русский</a> ·
+  <a href="../README.md">简体中文</a>
 </p>
 
 ## پیش‌نمایش
@@ -44,7 +45,7 @@
 
 ### کانال تلگرام
 
-آموزش‌ها، دانلودها و راهنمای استفاده در [راهنمای کلاینت Feiliu](https://guide.tikka.cn) قرار دارد.
+آموزش‌ها، دانلودها و راهنمای استفاده در [راهنمای کلاینت Feiliu](https://guide.uutec.net) قرار دارد.
 
 ---
 
