@@ -11,13 +11,14 @@ A Clash Meta GUI built with <a href="https://github.com/tauri-apps/tauri">Tauri<
 
 <p align="center">
   Languages:
-  <a href="../README.md">简体中文</a> ·
   <a href="./README_en.md">English</a> ·
   <a href="./README_es.md">Español</a> ·
-  <a href="./README_ru.md">Русский</a> ·
+  <a href="./README_fa.md">فارسی</a> ·
   <a href="./README_ja.md">日本語</a> ·
   <a href="./README_ko.md">한국어</a> ·
-  <a href="./README_fa.md">فارسی</a>
+  <a href="./README_pt.md">Português</a> ·
+  <a href="./README_ru.md">Русский</a> ·
+  <a href="../README.md">简体中文</a>
 </p>
 
 ## Preview
@@ -41,9 +42,9 @@ We provide packages for Windows (x64/x86), Linux (x64/arm64), and macOS 10.15+ (
 
 #### Installation Guides & FAQ
 
-Read the [Feiliu Client Guide](https://guide.tikka.cn) for installation steps, troubleshooting, and frequently asked questions.
+Read the [Feiliu Client Guide](https://guide.uutec.net) for installation steps, troubleshooting, and frequently asked questions.
 
-Tutorials, downloads, and usage instructions are available at the [Feiliu Client Guide](https://guide.tikka.cn).
+Tutorials, downloads, and usage instructions are available at the [Feiliu Client Guide](https://guide.uutec.net).
 
 ---
 
@@ -99,6 +100,11 @@ Clash Verge Rev builds on or draws inspiration from these projects:
 - [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo): A rule-based tunnel written in Go.
 - [Fndroid/clash_for_windows_pkg](https://github.com/Fndroid/clash_for_windows_pkg): A Clash GUI for Windows and macOS.
 - [vitejs/vite](https://github.com/vitejs/vite): Next-generation frontend tooling with blazing-fast DX.
+
+## Privacy
+
+Clash Verge Rev does not collect any user data; configuration and logs stay on
+your own device. See the [Privacy Policy](../PRIVACY.md) for details.
 
 ## License
 

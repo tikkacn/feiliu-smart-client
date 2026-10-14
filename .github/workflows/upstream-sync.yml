@@ -101,7 +101,7 @@ jobs:
             })
             const existing = issues.find((issue) => issue.title === title)
             if (existing) {
-              await github.rest.issues.createComment({
+              await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: existing.number,
@@ -116,6 +116,12 @@ jobs:
               })
             }
 
+      - name: Stop when manual conflict resolution is required
+        if: steps.merge.outputs.result == 'conflict'
+        run: |
+          echo 'Upstream merge requires manual conflict resolution.'
+          exit 1
+
       - name: Install system dependencies
         if: steps.merge.outputs.result == 'merged'
         run: |
@@ -126,7 +132,7 @@ jobs:
         if: steps.merge.outputs.result == 'merged'
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: '1.95.0'
+          toolchain: '1.99.0'
           components: rustfmt
 
       - name: Install pnpm
@@ -139,7 +145,7 @@ jobs:
         if: steps.merge.outputs.result == 'merged'
         uses: actions/setup-node@v7
         with:
-          node-version: '24.19.0'
+          node-version: '24.21.0'
           cache: pnpm
 
       - name: Verify merged code and customizations
@@ -159,6 +165,35 @@ jobs:
       - name: Push verified merge
         if: steps.merge.outputs.result == 'merged'
         run: git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Close resolved merge-conflict report
+        if: steps.merge.outputs.result != 'conflict'
+        uses: actions/github-script@v8
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+        with:
+          script: |
+            const title = '上游自动同步需要人工处理'
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            const existing = issues.find((issue) => issue.title === title)
+            if (!existing) return
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              body: `上游 ${process.env.UPSTREAM_TAG || '正式版'} 已完成合并，自动同步恢复。`,
+            })
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              state: 'closed',
+            })
 
       - name: Release a matching new upstream version
         if: steps.merge.outputs.result != 'conflict'
@@ -194,7 +229,7 @@ jobs:
             })
 
       - name: Report failed validation or release dispatch
-        if: failure()
+        if: failure() && steps.merge.outputs.result != 'conflict'
         uses: actions/github-script@v8
         with:
           script: |

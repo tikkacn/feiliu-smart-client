@@ -11,13 +11,14 @@
 
 <p align="center">
   言語:
-  <a href="../README.md">简体中文</a> ·
   <a href="./README_en.md">English</a> ·
   <a href="./README_es.md">Español</a> ·
-  <a href="./README_ru.md">Русский</a> ·
+  <a href="./README_fa.md">فارسی</a> ·
   <a href="./README_ja.md">日本語</a> ·
   <a href="./README_ko.md">한국어</a> ·
-  <a href="./README_fa.md">فارسی</a>
+  <a href="./README_pt.md">Português</a> ·
+  <a href="./README_ru.md">Русский</a> ·
+  <a href="../README.md">简体中文</a>
 </p>
 
 ## プレビュー
@@ -45,7 +46,7 @@ Windows (x64/x86)、Linux (x64/arm64)、macOS 10.15+ (Intel/Apple) をサポー�
 
 ### Telegram チャンネル
 
-チュートリアル、ダウンロード、利用方法は [Feiliu クライアントガイド](https://guide.tikka.cn) を参照してください。
+チュートリアル、ダウンロード、利用方法は [Feiliu クライアントガイド](https://guide.uutec.net) を参照してください。
 
 ---
 

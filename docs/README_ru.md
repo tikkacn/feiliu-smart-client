@@ -11,13 +11,14 @@ Clash Meta GUI базируется на <a href="https://github.com/tauri-apps/
 
 <p align="center">
   Языки:
-  <a href="../README.md">简体中文</a> ·
   <a href="./README_en.md">English</a> ·
   <a href="./README_es.md">Español</a> ·
-  <a href="./README_ru.md">Русский</a> ·
+  <a href="./README_fa.md">فارسی</a> ·
   <a href="./README_ja.md">日本語</a> ·
   <a href="./README_ko.md">한국어</a> ·
-  <a href="./README_fa.md">فارسی</a>
+  <a href="./README_pt.md">Português</a> ·
+  <a href="./README_ru.md">Русский</a> ·
+  <a href="../README.md">简体中文</a>
 </p>
 ## Предпросмотр
 
@@ -39,9 +40,9 @@ Clash Meta GUI базируется на <a href="https://github.com/tauri-apps/
 | Alpha(неиспользуемый) | Тестирование процесса публикации.                                                                       | [Alpha](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/alpha)         |
 | AutoBuild             | Версия с постоянным обновлением, подходящая для тестирования и обратной связи. Может содержать дефекты. | [AutoBuild](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/autobuild) |
 
-#### Инструкции по установке и ответы на часто задаваемые вопросы можно найти в [руководстве клиента Feiliu](https://guide.tikka.cn)
+#### Инструкции по установке и ответы на часто задаваемые вопросы можно найти в [руководстве клиента Feiliu](https://guide.uutec.net)
 
-Учебные материалы, загрузки и инструкции доступны в [руководстве клиента Feiliu](https://guide.tikka.cn).
+Учебные материалы, загрузки и инструкции доступны в [руководстве клиента Feiliu](https://guide.uutec.net).
 
 ---
 

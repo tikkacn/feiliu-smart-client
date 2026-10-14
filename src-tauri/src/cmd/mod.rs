@@ -127,7 +127,6 @@ pub use service::*;
 pub use smart::*;
 pub use system::*;
 pub use uwp::*;
-pub use validate::*;
 pub use verge::*;
 pub use webdav::*;
 

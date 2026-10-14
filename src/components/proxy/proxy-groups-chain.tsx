@@ -1,3 +1,4 @@
+import { DragDropProvider } from '@dnd-kit/react'
 import { ExpandMoreRounded } from '@mui/icons-material'
 import {
   Alert,
@@ -23,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useProxiesData } from '@/providers/app-data-context'
 import { updateProxyChainConfigInRuntime } from '@/services/cmds'
+import { mutate } from '@/services/mutate'
 import {
   isInteractableMember,
   type ProxyGroupView,
@@ -35,6 +37,10 @@ import { ProxyChain } from './proxy-chain'
 import { type ProxyChainItem, rebindProxyChainItems } from './proxy-chain-model'
 import { ProxyRender } from './proxy-render'
 import type { HeadState } from './use-head-state'
+import {
+  PROXY_GROUP_HEADER_SENSORS,
+  useProxyGroupHeaderLayout,
+} from './use-proxy-group-header-layout'
 import type { IRenderItem } from './use-render-list'
 
 // ---- Types ----
@@ -315,6 +321,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
     onScrollToTop,
   } = props
   const { proxyView } = useProxiesData()
+  const { onDragEnd: onHeaderDragEnd } = useProxyGroupHeaderLayout()
 
   // Chain-specific state
   const [proxyChain, setProxyChain] = useState<ProxyChainItem[]>(() => {
@@ -398,7 +405,10 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
     handleGroupMenuClose()
 
     if (mode === 'rule') {
-      updateProxyChainConfigInRuntime(null)
+      mutate(() => updateProxyChainConfigInRuntime(null), {
+        id: 'update-proxy-chain-runtime',
+        errorNotice: false,
+      })
       localStorage.removeItem('proxy-chain-group')
       localStorage.removeItem('proxy-chain-exit-node')
       localStorage.removeItem('proxy-chain-items')
@@ -455,20 +465,25 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
 
   // Render virtual list for chain mode
   const renderProxyList = (height: string) => (
-    <ProxyVirtualList
-      parentRef={parentRef}
-      height={height}
-      totalSize={totalSize}
-      virtualItems={virtualItems}
-      renderList={renderList}
-      activeStickyIndex={activeStickyIndex}
-      isChainMode
-      measureElement={measureElement}
-      onLocation={onLocation}
-      onCheckAll={onCheckAll}
-      onHeadState={onHeadState}
-      onChangeProxy={handleChangeProxy}
-    />
+    <DragDropProvider
+      sensors={PROXY_GROUP_HEADER_SENSORS}
+      onDragEnd={onHeaderDragEnd}
+    >
+      <ProxyVirtualList
+        parentRef={parentRef}
+        height={height}
+        totalSize={totalSize}
+        virtualItems={virtualItems}
+        renderList={renderList}
+        activeStickyIndex={activeStickyIndex}
+        isChainMode
+        measureElement={measureElement}
+        onLocation={onLocation}
+        onCheckAll={onCheckAll}
+        onHeadState={onHeadState}
+        onChangeProxy={handleChangeProxy}
+      />
+    </DragDropProvider>
   )
 
   const showRuleHeader = mode === 'rule' && availableGroups.length > 0

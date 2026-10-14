@@ -1,7 +1,7 @@
 use super::CmdResult;
 use crate::cmd::StringifyErr as _;
-use crate::core::sysopt::Sysopt;
-use clash_verge_logging::{Type, logging};
+use crate::core::{proxy_control, sysopt::Sysopt};
+
 use gethostname::gethostname;
 use network_interface::NetworkInterface;
 use serde_yaml_ng::Mapping;
@@ -10,10 +10,12 @@ use tauri_plugin_clash_verge_sysinfo;
 
 #[tauri::command]
 pub async fn get_sys_proxy() -> CmdResult<Mapping> {
-    logging!(debug, Type::Network, "异步获取系统代理配置");
-
     Sysopt::global().wait_idle().await;
-    let sys_proxy = Sysproxy::get_system_proxy().stringify_err()?;
+    // With no network service there is no proxy configured anywhere, which reads as disabled.
+    let sys_proxy = match Sysproxy::get_system_proxy() {
+        Err(error) if proxy_control::is_missing_network_service(&error) => Sysproxy::default(),
+        other => other.stringify_err()?,
+    };
     let Sysproxy {
         ref host,
         ref bypass,
@@ -25,35 +27,21 @@ pub async fn get_sys_proxy() -> CmdResult<Mapping> {
     map.insert("enable".into(), (*enable).into());
     map.insert("server".into(), format!("{}:{}", host, port).into());
     map.insert("bypass".into(), bypass.as_str().into());
-
-    logging!(
-        debug,
-        Type::Network,
-        "返回系统代理配置: enable={}, {}:{}",
-        sys_proxy.enable,
-        sys_proxy.host,
-        sys_proxy.port
-    );
     Ok(map)
 }
 
 #[tauri::command]
 pub async fn get_auto_proxy() -> CmdResult<Mapping> {
     Sysopt::global().wait_idle().await;
-    let auto_proxy = Autoproxy::get_auto_proxy().stringify_err()?;
+    let auto_proxy = match Autoproxy::get_auto_proxy() {
+        Err(error) if proxy_control::is_missing_network_service(&error) => Autoproxy::default(),
+        other => other.stringify_err()?,
+    };
     let Autoproxy { ref enable, ref url } = auto_proxy;
 
     let mut map = Mapping::new();
     map.insert("enable".into(), (*enable).into());
     map.insert("url".into(), url.as_str().into());
-
-    logging!(
-        debug,
-        Type::Network,
-        "返回自动代理配置（缓存）: enable={}, url={}",
-        auto_proxy.enable,
-        auto_proxy.url
-    );
     Ok(map)
 }
 
