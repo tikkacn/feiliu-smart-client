@@ -104,7 +104,12 @@ export const LayoutSidebar = (props: LayoutSidebarProps) => {
     // attributes, so screen readers announce every item as a disabled draggable.
     if (!menuUnlocked) {
       return (
-        <LayoutItem key={item.path} to={item.path} icon={item.icon}>
+        <LayoutItem
+          key={item.path}
+          to={item.path}
+          icon={item.icon}
+          externalUrl={item.externalUrl}
+        >
           {t(item.label)}
         </LayoutItem>
       )
@@ -113,7 +118,12 @@ export const LayoutSidebar = (props: LayoutSidebarProps) => {
     return (
       <SortableItem key={item.path} id={item.path} index={index}>
         {(sortable) => (
-          <LayoutItem to={item.path} icon={item.icon} sortable={sortable}>
+          <LayoutItem
+            to={item.path}
+            icon={item.icon}
+            sortable={sortable}
+            externalUrl={item.externalUrl}
+          >
             {t(item.label)}
           </LayoutItem>
         )}
