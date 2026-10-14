@@ -22,6 +22,14 @@ const requiredContent = [
   ['src/hooks/use-update.ts', 'refetchInterval: false'],
 ]
 
+const requiredOccurrences = [
+  [
+    'src/components/layout/layout-sidebar.tsx',
+    'externalUrl={item.externalUrl}',
+    2,
+  ],
+]
+
 const forbiddenContent = [
   ['README.md', 'guide.tikka.cn'],
   ['src/pages/_navigation-meta.ts', 'guide.tikka.cn'],
@@ -52,6 +60,16 @@ for (const [file, expected] of requiredContent) {
   }
 }
 
+for (const [file, expected, count] of requiredOccurrences) {
+  const content = await readFile(file, 'utf8')
+  const occurrences = content.split(expected).length - 1
+  if (occurrences !== count) {
+    failures.push(
+      `${file} must contain ${count} occurrences of ${expected}; found ${occurrences}`,
+    )
+  }
+}
+
 for (const [file, forbidden] of forbiddenContent) {
   const content = await readFile(file, 'utf8')
   if (content.includes(forbidden)) {
@@ -68,5 +86,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `[custom-verify] verified ${requiredFiles.length} files and ${requiredContent.length} required markers`,
+  `[custom-verify] verified ${requiredFiles.length} files, ${requiredContent.length} required markers and ${requiredOccurrences.length} occurrence rules`,
 )

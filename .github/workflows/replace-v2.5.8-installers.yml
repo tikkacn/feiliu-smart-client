@@ -1,0 +1,237 @@
+name: Replace Feiliu v2.5.8 installers
+
+on:
+  push:
+    tags:
+      - 'republish-v2.5.8'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_INCREMENTAL: 0
+  HUSKY: 0
+  RUST_BACKTRACE: short
+  RELEASE_TAG: v2.5.8
+
+concurrency:
+  group: replace-feiliu-v2.5.8-installers
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify replacement source and current release
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.source.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          cache: pnpm
+
+      - name: Verify source version and default branch
+        id: source
+        shell: bash
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "$package_version" != "2.5.8" ]; then
+            echo "Expected package version 2.5.8, found ${package_version}."
+            exit 1
+          fi
+
+          git fetch origin "${{ github.event.repository.default_branch }}"
+          if ! git merge-base --is-ancestor HEAD "origin/${{ github.event.repository.default_branch }}"; then
+            echo 'Replacement source must be merged into the default branch.'
+            exit 1
+          fi
+
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm published release and expected installer assets
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              ...context.repo,
+              tag: 'v2.5.8',
+            })
+            if (release.draft || release.prerelease) {
+              throw new Error('The existing v2.5.8 release must be published and stable.')
+            }
+            const expected = [
+              'Clash.Verge_2.5.8_x64-setup.exe',
+              'Clash.Verge_2.5.8_aarch64.dmg',
+              'Clash.Verge_2.5.8_x64.dmg',
+            ]
+            const present = new Set(release.assets.map((asset) => asset.name))
+            const missing = expected.filter((name) => !present.has(name))
+            if (missing.length) {
+              throw new Error(`Existing release is missing expected assets: ${missing.join(', ')}`)
+            }
+
+      - name: Install dependencies and verify customizations
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm custom:verify
+          pnpm format:check
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+          pnpm workflow:check
+
+  build:
+    name: Build ${{ matrix.label }} installer
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle: nsis
+            installer: target/x86_64-pc-windows-msvc/release/bundle/nsis/*setup.exe
+            artifact: installer-windows-x64
+          - label: macOS Apple Silicon
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundle: dmg
+            installer: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            artifact: installer-macos-arm64
+          - label: macOS Intel
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundle: dmg
+            installer: target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            artifact: installer-macos-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.commit_sha }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.99.0'
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: feiliu-republish
+          key: '${{ runner.os }}-${{ matrix.target }}'
+          workspaces: |
+            . -> target
+
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          cache: pnpm
+
+      - name: Install dependencies and sidecars
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run prebuild ${{ matrix.target }}
+
+      - name: Configure optional Apple signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] || [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            if [ -z "$APPLE_CERTIFICATE" ] || [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+              echo 'Apple signing requires both a certificate and signing identity.'
+              exit 1
+            fi
+            for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+              value="${!name}"
+              if [ -n "$value" ]; then
+                printf '%s<<FEILIU_SIGNING_VALUE\n%s\nFEILIU_SIGNING_VALUE\n' "$name" "$value" >> "$GITHUB_ENV"
+              fi
+            done
+          else
+            echo 'No Developer ID certificate configured; using ad-hoc signing without notarization.'
+            echo 'APPLE_SIGNING_IDENTITY=-' >> "$GITHUB_ENV"
+          fi
+
+      - name: Build installer without publishing
+        uses: tauri-apps/tauri-action@v1
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        with:
+          tauriScript: pnpm
+          args: --target ${{ matrix.target }} -b ${{ matrix.bundle }}
+          includeUpdaterJson: false
+
+      - name: Upload installer for atomic replacement
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          archive: false
+          path: ${{ matrix.installer }}
+          if-no-files-found: error
+          retention-days: 2
+
+  publish:
+    name: Replace existing release assets
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all completed installers
+        uses: actions/download-artifact@v8
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Validate installer set
+        shell: bash
+        run: |
+          expected=(
+            'Clash.Verge_2.5.8_x64-setup.exe'
+            'Clash.Verge_2.5.8_aarch64.dmg'
+            'Clash.Verge_2.5.8_x64.dmg'
+          )
+          for file in "${expected[@]}"; do
+            if [ ! -s "installers/${file}" ]; then
+              echo "Missing or empty installer: ${file}"
+              exit 1
+            fi
+            sha256sum "installers/${file}"
+          done
+          actual_count="$(find installers -maxdepth 1 -type f | wc -l)"
+          if [ "$actual_count" -ne "${#expected[@]}" ]; then
+            echo "Expected exactly ${#expected[@]} installers; found ${actual_count}."
+            exit 1
+          fi
+
+      - name: Replace installers on the existing v2.5.8 release
+        uses: softprops/action-gh-release@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v2.5.8
+          files: |
+            installers/Clash.Verge_2.5.8_x64-setup.exe
+            installers/Clash.Verge_2.5.8_aarch64.dmg
+            installers/Clash.Verge_2.5.8_x64.dmg
+          overwrite_files: true
+          fail_on_unmatched_files: true
