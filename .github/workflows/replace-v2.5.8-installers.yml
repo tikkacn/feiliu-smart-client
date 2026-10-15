@@ -3,7 +3,7 @@ name: Replace Feiliu v2.5.8 installers
 on:
   push:
     tags:
-      - 'republish-v2.5.8'
+      - 'republish-v2.5.8*'
 
 permissions:
   contents: write
@@ -206,6 +206,10 @@ jobs:
       - name: Validate installer set
         shell: bash
         run: |
+          mv "installers/Clash Verge_2.5.8_x64-setup.exe" "installers/Clash.Verge_2.5.8_x64-setup.exe"
+          mv "installers/Clash Verge_2.5.8_aarch64.dmg" "installers/Clash.Verge_2.5.8_aarch64.dmg"
+          mv "installers/Clash Verge_2.5.8_x64.dmg" "installers/Clash.Verge_2.5.8_x64.dmg"
+
           expected=(
             'Clash.Verge_2.5.8_x64-setup.exe'
             'Clash.Verge_2.5.8_aarch64.dmg'
